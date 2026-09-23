@@ -142,7 +142,7 @@ router.post(
 
       if (req.file) {
         const relativePath =
-          `/uploads/media/${req.file.filename}`;
+          req.file.path;
 
         data.url =
           relativePath;
@@ -362,7 +362,7 @@ router.put(
 
       if (req.file) {
         const relativePath =
-          `/uploads/media/${req.file.filename}`;
+          req.file.path;
 
         data.url =
           relativePath;

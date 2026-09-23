@@ -175,7 +175,7 @@ const createAlbum = async (req, res) => {
     let image = "";
 
     if (req.file) {
-      image = `/uploads/albums/${req.file.filename}`;
+      image = req.file.path;
     } else if (
       bodyImage &&
       String(bodyImage).trim()
@@ -241,7 +241,7 @@ const createAlbum = async (req, res) => {
 
     if (req.file) {
       deleteImageFile(
-        `/uploads/albums/${req.file.filename}`
+        req.file.path
       );
     }
 
@@ -373,7 +373,7 @@ const updateAlbum = async (req, res) => {
         deleteImageFile(album.image);
       }
 
-      album.image = `/uploads/albums/${req.file.filename}`;
+      album.image = req.file.path;
     } else if (
       bodyImage !== undefined &&
       String(bodyImage).trim()
@@ -404,7 +404,7 @@ const updateAlbum = async (req, res) => {
 
     if (req.file) {
       deleteImageFile(
-        `/uploads/albums/${req.file.filename}`
+        req.file.path
       );
     }
 

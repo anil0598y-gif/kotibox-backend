@@ -128,7 +128,7 @@ const createArtist = async (req, res) => {
     let image = "";
 
     if (req.file) {
-      image = `/uploads/artists/${req.file.filename}`;
+      image = req.file.path;
     }
 
     const artist = await Artist.create({
@@ -189,7 +189,7 @@ const createArtist = async (req, res) => {
 
     if (req.file) {
       deleteImageFile(
-        `/uploads/artists/${req.file.filename}`
+        req.file.path
       );
     }
 
@@ -215,7 +215,7 @@ const updateArtist = async (req, res) => {
     if (!artist) {
       if (req.file) {
         deleteImageFile(
-          `/uploads/artists/${req.file.filename}`
+          req.file.path
         );
       }
 
@@ -330,7 +330,7 @@ const updateArtist = async (req, res) => {
         artist.image;
 
       artist.image =
-        `/uploads/artists/${req.file.filename}`;
+        req.file.path;
 
       if (oldImage) {
         deleteImageFile(
@@ -355,7 +355,7 @@ const updateArtist = async (req, res) => {
 
     if (req.file) {
       deleteImageFile(
-        `/uploads/artists/${req.file.filename}`
+        req.file.path
       );
     }
 

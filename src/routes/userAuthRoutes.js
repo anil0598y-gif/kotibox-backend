@@ -741,7 +741,7 @@ router.put(
 
       // ✅ NEW AVATAR FILE UPLOADED
       if (req.file) {
-        const imageUrl = `/uploads/users/${req.file.filename}`;
+        const imageUrl = req.file.path;
 
         console.log("📁 Avatar uploaded:", imageUrl);
 

@@ -1,5 +1,6 @@
 const path = require("path");
-const fs = require("fs");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const multer = require("multer");
 
 const Admin = require("../models/Admin");
@@ -9,29 +10,26 @@ const {
 } = require("../middleware/authMiddleware");
 
 /* =========================================================
-   MULTER CONFIG (profile image upload के लिए)
+   CLOUDINARY CONFIG
 ========================================================= */
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(
-      __dirname,
-      "../../public/uploads"
-    );
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "fhpolyec",
+  api_key: process.env.CLOUDINARY_API_KEY || "887255579813446",
+  api_secret:
+    process.env.CLOUDINARY_API_SECRET || "uX8HkG0kSZbVIGieMlj6l_23Hno",
+});
 
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+/* =========================================================
+   CLOUDINARY STORAGE (Admin avatar upload)
+========================================================= */
 
-    cb(null, uploadDir);
-  },
-
-  filename: (req, file, cb) => {
-    const uniqueName = `admin-${Date.now()}-${Math.round(
-      Math.random() * 1e9
-    )}${path.extname(file.originalname)}`;
-
-    cb(null, uniqueName);
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "kotibox/admins",
+    resource_type: "image",
+    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp", "jfif"],
   },
 });
 
@@ -138,12 +136,7 @@ exports.loginAdmin = async (req, res) => {
     }).select("+password");
 
     if (!admin) {
-      /* ✅ Failed login भी log करो */
-      await saveLoginHistory(
-        null,
-        req,
-        "failed"
-      );
+      await saveLoginHistory(null, req, "failed");
 
       return res.status(401).json({
         success: false,
@@ -154,11 +147,7 @@ exports.loginAdmin = async (req, res) => {
     const isMatch = await admin.comparePassword(password);
 
     if (!isMatch) {
-      await saveLoginHistory(
-        admin._id,
-        req,
-        "failed"
-      );
+      await saveLoginHistory(admin._id, req, "failed");
 
       return res.status(401).json({
         success: false,
@@ -166,7 +155,6 @@ exports.loginAdmin = async (req, res) => {
       });
     }
 
-    /* ✅ Deactivated account check */
     if (admin.status === "Inactive") {
       return res.status(403).json({
         success: false,
@@ -178,19 +166,13 @@ exports.loginAdmin = async (req, res) => {
     admin.lastLogin = new Date();
     await admin.save({ validateBeforeSave: false });
 
-    /* ✅ tokenVersion के साथ token generate करो */
     const token = generateToken(
       admin._id,
       admin.email,
       admin.tokenVersion || 0
     );
 
-    /* ✅ Login history log करो */
-    await saveLoginHistory(
-      admin._id,
-      req,
-      "success"
-    );
+    await saveLoginHistory(admin._id, req, "success");
 
     const adminData = admin.toObject();
     delete adminData.password;
@@ -263,7 +245,8 @@ exports.updateMyProfileWithImage = async (req, res) => {
 
     /* ✅ अगर नई image upload हुई है */
     if (req.file) {
-      const imageUrl = `/uploads/${req.file.filename}`;
+      // ✅ Cloudinary full URL
+      const imageUrl = req.file.path;
 
       updateData.avatar = imageUrl;
       updateData.profileImage = imageUrl;
@@ -473,7 +456,6 @@ exports.logoutAllDevices = async (req, res) => {
       });
     }
 
-    /* ✅ tokenVersion बढ़ाओ → सारे tokens invalid */
     admin.tokenVersion =
       (admin.tokenVersion || 0) + 1;
 

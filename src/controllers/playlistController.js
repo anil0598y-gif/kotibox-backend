@@ -89,7 +89,7 @@ const createPlaylist = async (req, res) => {
     let coverImage = "";
 
     if (req.file) {
-      coverImage = `/uploads/playlists/${req.file.filename}`;
+      coverImage = req.file.path;   // ✅ Cloudinary URL
     } else if (
       imageUrl &&
       String(imageUrl).trim()
@@ -308,11 +308,11 @@ const updatePlaylist = async (req, res) => {
       /* 1. Uploaded file */
       console.log(
         "📁 New file upload:",
-        req.file.filename
+        req.file.path   // ✅ Cloudinary URL
       );
 
       deleteOldImage();
-      playlist.coverImage = `/uploads/playlists/${req.file.filename}`;
+      playlist.coverImage = req.file.path;   // ✅ Cloudinary URL
     } else if (
       imageUrl !== undefined &&
       String(imageUrl).trim()

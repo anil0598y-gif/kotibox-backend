@@ -152,7 +152,7 @@ const createUser = async (req, res) => {
 
     if (req.file) {
       imageUrl =
-        `/uploads/users/${req.file.filename}`;
+        req.file.path;
     }
 
     /* =====================================
@@ -342,7 +342,7 @@ const updateUser = async (req, res) => {
       deleteUserImage(user.avatar);
 
       const newImage =
-        `/uploads/users/${req.file.filename}`;
+        req.file.path;
 
       user.avatar = newImage;
       user.profileImage = newImage;
