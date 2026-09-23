@@ -1,143 +1,94 @@
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 /* =========================================================
-   STORAGE
+   CLOUDINARY CONFIG
 ========================================================= */
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    let folder = path.join(
-      __dirname,
-      "../../public/uploads"
-    );
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "fhpolyec",
+  api_key: process.env.CLOUDINARY_API_KEY || "887255579813446",
+  api_secret:
+    process.env.CLOUDINARY_API_SECRET || "uX8HkG0kSZbVIGieMlj6l_23Hno",
+});
 
+/* =========================================================
+   CLOUDINARY STORAGE
+========================================================= */
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+
+  params: async (req, file) => {
     /* =====================================================
-       SONGS
+       FOLDER DECIDE KARO (req.baseUrl se)
     ===================================================== */
+
+    let folder = "kotibox";
 
     if (req.baseUrl.includes("/songs")) {
-      folder = path.join(
-        __dirname,
-        "../../public/uploads/songs"
-      );
-    }
-
-    /* =====================================================
-       ARTISTS
-    ===================================================== */
-
-    else if (req.baseUrl.includes("/artists")) {
-      folder = path.join(
-        __dirname,
-        "../../public/uploads/artists"
-      );
-    }
-
-    /* =====================================================
-       ALBUMS
-    ===================================================== */
-
-    else if (req.baseUrl.includes("/albums")) {
-      folder = path.join(
-        __dirname,
-        "../../public/uploads/albums"
-      );
-    }
-
-    /* =====================================================
-       PLAYLISTS
-    ===================================================== */
-
-    else if (req.baseUrl.includes("/playlists")) {
-      folder = path.join(
-        __dirname,
-        "../../public/uploads/playlists"
-      );
-    }
-
-    /* =====================================================
-       MEDIA LIBRARY
-    ===================================================== */
-
-    else if (req.baseUrl.includes("/media")) {
-      folder = path.join(
-        __dirname,
-        "../../public/uploads/media"
-      );
-    }
-
-    /* =====================================================
-       USERS
-       ✅ FIXED: /user aur /users dono check karo
-    ===================================================== */
-
-    else if (
+      folder = "kotibox/songs";
+    } else if (req.baseUrl.includes("/artists")) {
+      folder = "kotibox/artists";
+    } else if (req.baseUrl.includes("/albums")) {
+      folder = "kotibox/albums";
+    } else if (req.baseUrl.includes("/playlists")) {
+      folder = "kotibox/playlists";
+    } else if (req.baseUrl.includes("/media")) {
+      folder = "kotibox/media";
+    } else if (
       req.baseUrl.includes("/users") ||
       req.baseUrl.includes("/user")
     ) {
-      folder = path.join(
-        __dirname,
-        "../../public/uploads/users"
-      );
-    }
-
-    /* =====================================================
-       ADS
-    ===================================================== */
-
-    else if (req.baseUrl.includes("/ads")) {
-      if (
-        file.mimetype &&
-        file.mimetype.startsWith("image/")
-      ) {
-        folder = path.join(
-          __dirname,
-          "../../public/uploads/ads/images"
-        );
-      } else if (
-        file.mimetype &&
-        file.mimetype.startsWith("video/")
-      ) {
-        folder = path.join(
-          __dirname,
-          "../../public/uploads/ads/videos"
-        );
+      folder = "kotibox/users";
+    } else if (req.baseUrl.includes("/ads")) {
+      if (file.mimetype && file.mimetype.startsWith("image/")) {
+        folder = "kotibox/ads/images";
+      } else if (file.mimetype && file.mimetype.startsWith("video/")) {
+        folder = "kotibox/ads/videos";
       } else {
-        folder = path.join(
-          __dirname,
-          "../../public/uploads/ads"
-        );
+        folder = "kotibox/ads";
       }
     }
 
     /* =====================================================
-       CREATE DIRECTORY
+       RESOURCE TYPE DECIDE KARO
     ===================================================== */
 
-    fs.mkdirSync(folder, {
-      recursive: true,
-    });
+    let resourceType = "image";
 
-    cb(null, folder);
-  },
+    if (file.mimetype && file.mimetype.startsWith("image/")) {
+      resourceType = "image";
+    } else if (file.mimetype && file.mimetype.startsWith("video/")) {
+      resourceType = "video";
+    } else if (file.mimetype && file.mimetype.startsWith("audio/")) {
+      resourceType = "video"; // Cloudinary audio ko video me rakhta hai
+    } else {
+      resourceType = "raw"; // Docs, PDFs
+    }
 
-  /* =======================================================
-     FILE NAME
-  ======================================================= */
-
-  filename: (req, file, cb) => {
-    const uniqueName =
-      Date.now() +
-      "-" +
-      Math.round(Math.random() * 1e9);
-
-    const extension = path.extname(
-      file.originalname
-    );
-
-    cb(null, uniqueName + extension);
+    return {
+      folder: folder,
+      resource_type: resourceType,
+      allowed_formats: [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "webp",
+        "jfif",
+        "mp3",
+        "wav",
+        "m4a",
+        "mp4",
+        "mov",
+        "avi",
+        "pdf",
+        "txt",
+      ],
+    };
   },
 });
 
@@ -165,21 +116,14 @@ const fileFilter = (req, file, cb) => {
       return cb(null, true);
     }
 
-    return cb(
-      new Error(
-        "Unsupported Media Library file type"
-      )
-    );
+    return cb(new Error("Unsupported Media Library file type"));
   }
 
   /* =======================================================
-     ✅ ADS — mediaFile (image or video)
+     ADS — mediaFile (image or video)
   ======================================================= */
 
-  if (
-    fieldName === "mediaFile" ||
-    fieldName === "media"
-  ) {
+  if (fieldName === "mediaFile" || fieldName === "media") {
     if (
       file.mimetype &&
       (file.mimetype.startsWith("image/") ||
@@ -188,28 +132,19 @@ const fileFilter = (req, file, cb) => {
       return cb(null, true);
     }
 
-    return cb(
-      new Error(
-        "Ad media must be an image or video file"
-      )
-    );
+    return cb(new Error("Ad media must be an image or video file"));
   }
 
   /* =======================================================
-     ✅ ADS — thumbnailFile (image only)
+     ADS — thumbnailFile (image only)
   ======================================================= */
 
   if (fieldName === "thumbnailFile") {
-    if (
-      file.mimetype &&
-      file.mimetype.startsWith("image/")
-    ) {
+    if (file.mimetype && file.mimetype.startsWith("image/")) {
       return cb(null, true);
     }
 
-    return cb(
-      new Error("Ad thumbnail must be an image")
-    );
+    return cb(new Error("Ad thumbnail must be an image"));
   }
 
   /* =======================================================
@@ -223,56 +158,35 @@ const fileFilter = (req, file, cb) => {
     fieldName === "profileImage" ||
     fieldName === "avatar"
   ) {
-    if (
-      file.mimetype &&
-      file.mimetype.startsWith("image/")
-    ) {
+    if (file.mimetype && file.mimetype.startsWith("image/")) {
       return cb(null, true);
     }
 
-    return cb(
-      new Error("Only image files are allowed")
-    );
+    return cb(new Error("Only image files are allowed"));
   }
 
   /* =======================================================
      AUDIO
   ======================================================= */
 
-  if (
-    fieldName === "audio" ||
-    fieldName === "audioFile"
-  ) {
-    if (
-      file.mimetype &&
-      file.mimetype.startsWith("audio/")
-    ) {
+  if (fieldName === "audio" || fieldName === "audioFile") {
+    if (file.mimetype && file.mimetype.startsWith("audio/")) {
       return cb(null, true);
     }
 
-    return cb(
-      new Error("Only audio files are allowed")
-    );
+    return cb(new Error("Only audio files are allowed"));
   }
 
   /* =======================================================
      VIDEO
   ======================================================= */
 
-  if (
-    fieldName === "musicVideo" ||
-    fieldName === "lyricVideo"
-  ) {
-    if (
-      file.mimetype &&
-      file.mimetype.startsWith("video/")
-    ) {
+  if (fieldName === "musicVideo" || fieldName === "lyricVideo") {
+    if (file.mimetype && file.mimetype.startsWith("video/")) {
       return cb(null, true);
     }
 
-    return cb(
-      new Error("Only video files are allowed")
-    );
+    return cb(new Error("Only video files are allowed"));
   }
 
   /* =======================================================
@@ -280,37 +194,22 @@ const fileFilter = (req, file, cb) => {
   ======================================================= */
 
   if (fieldName === "lyricsFile") {
-    const allowedExtensions = [
-      ".txt",
-      ".lrc",
-      ".srt",
-      ".vtt",
-    ];
+    const allowedExtensions = [".txt", ".lrc", ".srt", ".vtt"];
 
-    const extension = path
-      .extname(file.originalname)
-      .toLowerCase();
+    const extension = path.extname(file.originalname).toLowerCase();
 
     if (allowedExtensions.includes(extension)) {
       return cb(null, true);
     }
 
-    return cb(
-      new Error(
-        "Lyrics file must be TXT, LRC, SRT or VTT"
-      )
-    );
+    return cb(new Error("Lyrics file must be TXT, LRC, SRT or VTT"));
   }
 
   /* =======================================================
      UNSUPPORTED FIELD
   ======================================================= */
 
-  return cb(
-    new Error(
-      `Unsupported upload field: ${fieldName}`
-    )
-  );
+  return cb(new Error(`Unsupported upload field: ${fieldName}`));
 };
 
 /* =========================================================
@@ -322,7 +221,7 @@ const upload = multer({
   fileFilter,
 
   limits: {
-    fileSize: 500 * 1024 * 1024, /* 500 MB */
+    fileSize: 500 * 1024 * 1024, // 500 MB
   },
 });
 
