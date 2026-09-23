@@ -21,13 +21,14 @@ console.log("📁 UPLOADS EXISTS:", fs.existsSync(UPLOADS_PATH));
 console.log("=========================================");
 
 /* =========================================
-   CORS
+   CORS — FIXED
 ========================================= */
 
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
+  "https://melodic-queijadas-7955df.netlify.app",   // ✅ Netlify URL add kiya
 ];
 
 app.use(
@@ -48,7 +49,8 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error("Not allowed by CORS"));
+      // ✅ Production me bhi Netlify URL allow karo
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
 
     credentials: true,
@@ -83,14 +85,11 @@ app.use(
 /* =========================================
    UPLOADS
 ========================================= */
-/* =========================================
-   UPLOADS — FIXED
-========================================= */
 
 app.use(
   "/uploads",
   express.static(UPLOADS_PATH, {
-    fallthrough: true,   // ✅ CHANGE: false → true
+    fallthrough: true,
     index: false,
     maxAge: "1d",
     setHeaders: (res) => {
