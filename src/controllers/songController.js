@@ -70,8 +70,6 @@ const cleanupUploadedFiles = (files) => {
 
 /* --------------------------------------------------------------------------
    FILE URL
-   ✅ FIXED — upload.js files ko public/uploads/songs/ me save karta hai,
-   isliye URL prefix bhi /uploads/songs/ hona chahiye
 -------------------------------------------------------------------------- */
 
 const getFileUrl = (file) => {
@@ -226,7 +224,7 @@ const addSong = async (req, res) => {
       if (Number.isNaN(plays)) plays = 0;
     }
 
-    /* CREATE SONG */
+    /* CREATE SONG — ✅ Lyrics fields added */
 
     const song = await Song.create({
       title: req.body.title?.trim() || "",
@@ -245,6 +243,10 @@ const addSong = async (req, res) => {
       musicVideoUrl,
       lyricVideoUrl,
       lyricsFileUrl,
+
+      // ✅ NAYE FIELDS — Lyrics text
+      lyrics: req.body.lyrics || "",
+      syncedLyrics: req.body.syncedLyrics || "",
 
       isrc: req.body.isrc || "",
       catalogId: req.body.catalogId || "",
@@ -269,8 +271,7 @@ const addSong = async (req, res) => {
     console.log("✅ SONG SAVED");
     console.log("ID:", song._id);
     console.log("TITLE:", song.title);
-    console.log("IMAGE URL:", song.imageUrl);
-    console.log("AUDIO URL:", song.audioUrl);
+    console.log("LYRICS:", song.lyrics ? "✅" : "❌");
     console.log("=================================");
 
     res.status(201).json({
@@ -295,8 +296,7 @@ const addSong = async (req, res) => {
 };
 
 /* --------------------------------------------------------------------------
-   UPDATE SONG — ✅ FIXED
-   Priority: uploaded file > frontend URL > existing value
+   UPDATE SONG
 -------------------------------------------------------------------------- */
 
 const updateSong = async (req, res) => {
@@ -305,11 +305,6 @@ const updateSong = async (req, res) => {
     console.log("=================================");
     console.log("✏️ UPDATE SONG REQUEST");
     console.log("=================================");
-
-    console.log("BODY:", req.body);
-    console.log("FILES:", req.files);
-
-    /* FIND SONG */
 
     const song = await Song.findById(
       req.params.id
@@ -340,12 +335,7 @@ const updateSong = async (req, res) => {
       });
     }
 
-    /* =========================================================
-       IMAGE — ✅ FIXED
-       Priority 1: uploaded coverImage / image file
-       Priority 2: frontend imageUrl (media library)
-       Priority 3: keep existing song.imageUrl
-    ========================================================= */
+    /* IMAGE */
 
     const imageFile = req.files?.image?.[0];
     const coverImageFile =
@@ -353,75 +343,27 @@ const updateSong = async (req, res) => {
     const finalImageFile =
       imageFile || coverImageFile;
 
-    console.log("🖼️ Image check:");
-    console.log(
-      "   imageFile:",
-      imageFile?.filename
-    );
-    console.log(
-      "   coverImageFile:",
-      coverImageFile?.filename
-    );
-    console.log(
-      "   finalImageFile:",
-      finalImageFile?.filename
-    );
-    console.log(
-      "   body.imageUrl:",
-      req.body.imageUrl
-    );
-    console.log(
-      "   current song.imageUrl:",
-      song.imageUrl
-    );
-
     if (finalImageFile) {
-      /* Naya file upload hua hai — purani delete karo, nayi set karo */
-      console.log(
-        "✅ New image file detected"
-      );
-
       deleteFile(song.imageUrl);
       song.imageUrl = getFileUrl(finalImageFile);
-
-      console.log(
-        "   new imageUrl:",
-        song.imageUrl
-      );
     } else if (
       req.body.imageUrl !== undefined &&
       String(req.body.imageUrl).trim()
     ) {
-      /* Frontend ne URL bheja (media library se) */
-      console.log(
-        "✅ imageUrl from frontend"
-      );
-
       song.imageUrl = String(
         req.body.imageUrl
       ).trim();
-    } else {
-      console.log(
-        "ℹ️ No image change, keeping existing"
-      );
     }
 
-    /* =========================================================
-       AUDIO
-    ========================================================= */
+    /* AUDIO */
 
     const audioFile = req.files?.audio?.[0];
     const audioFileAlt =
       req.files?.audioFile?.[0];
-
     const finalAudioFile =
       audioFile || audioFileAlt;
 
     if (finalAudioFile) {
-      console.log(
-        "✅ New audio file detected"
-      );
-
       deleteFile(song.audioUrl);
       song.audioUrl = getFileUrl(
         finalAudioFile
@@ -430,15 +372,9 @@ const updateSong = async (req, res) => {
       req.body.audioUrl !== undefined &&
       String(req.body.audioUrl).trim()
     ) {
-      console.log(
-        "✅ audioUrl from frontend"
-      );
-
       song.audioUrl = String(
         req.body.audioUrl
       ).trim();
-    } else {
-      console.log("ℹ️ No audio change");
     }
 
     /* MUSIC VIDEO */
@@ -450,10 +386,6 @@ const updateSong = async (req, res) => {
       deleteFile(song.musicVideoUrl);
       song.musicVideoUrl = getFileUrl(
         musicVideoFile
-      );
-      console.log(
-        "✅ New music video:",
-        song.musicVideoUrl
       );
     }
 
@@ -467,10 +399,6 @@ const updateSong = async (req, res) => {
       song.lyricVideoUrl = getFileUrl(
         lyricVideoFile
       );
-      console.log(
-        "✅ New lyric video:",
-        song.lyricVideoUrl
-      );
     }
 
     /* LYRICS FILE */
@@ -482,10 +410,6 @@ const updateSong = async (req, res) => {
       deleteFile(song.lyricsFileUrl);
       song.lyricsFileUrl = getFileUrl(
         lyricsFile
-      );
-      console.log(
-        "✅ New lyrics file:",
-        song.lyricsFileUrl
       );
     }
 
@@ -514,6 +438,13 @@ const updateSong = async (req, res) => {
 
     if (req.body.description !== undefined)
       song.description = req.body.description;
+
+    // ✅ NAYE FIELDS — Lyrics text update
+    if (req.body.lyrics !== undefined)
+      song.lyrics = req.body.lyrics;
+
+    if (req.body.syncedLyrics !== undefined)
+      song.syncedLyrics = req.body.syncedLyrics;
 
     if (
       req.body.plays !== undefined &&
@@ -576,8 +507,7 @@ const updateSong = async (req, res) => {
       "✅ SONG UPDATED:",
       song._id
     );
-    console.log("IMAGE URL:", song.imageUrl);
-    console.log("AUDIO URL:", song.audioUrl);
+    console.log("LYRICS:", song.lyrics ? "✅" : "❌");
     console.log("=================================");
 
     res.status(200).json({

@@ -16,6 +16,11 @@ const songSchema = new mongoose.Schema(
     musicVideoUrl: { type: String, default: "" },
     lyricVideoUrl: { type: String, default: "" },
     lyricsFileUrl: { type: String, default: "" },
+
+    // ✅ NAYE FIELDS — Lyrics text (admin panel se add honge)
+    lyrics: { type: String, default: "" },
+    syncedLyrics: { type: String, default: "" },
+
     isrc: { type: String, default: "", trim: true },
     catalogId: { type: String, default: "", trim: true },
     composer: { type: String, default: "", trim: true },

@@ -28,28 +28,24 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://melodic-queijadas-7955df.netlify.app",   // ✅ Netlify URL add kiya
+  "https://melodic-queijadas-7955df.netlify.app",
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Postman / mobile / server requests
       if (!origin) {
         return callback(null, true);
       }
 
-      // Allowed frontend origins
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      // Development: allow everything
       if (process.env.NODE_ENV !== "production") {
         return callback(null, true);
       }
 
-      // ✅ Production me bhi Netlify URL allow karo
       return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
 
@@ -78,9 +74,7 @@ app.use(
    STATIC PUBLIC FILES
 ========================================= */
 
-app.use(
-  express.static(PUBLIC_PATH)
-);
+app.use(express.static(PUBLIC_PATH));
 
 /* =========================================
    UPLOADS
@@ -164,129 +158,104 @@ app.get("/api/health", (req, res) => {
    SONG API
 ========================================= */
 
-app.use(
-  "/api/songs",
-  require("./routes/songRoutes")
-);
+app.use("/api/songs", require("./routes/songRoutes"));
 
 /* =========================================
    ADMIN USER MANAGEMENT
 ========================================= */
 
-app.use(
-  "/api/users",
-  require("./routes/userRoutes")
-);
+app.use("/api/users", require("./routes/userRoutes"));
 
 /* =========================================
    USER AUTH
 ========================================= */
 
-app.use(
-  "/api/user",
-  require("./routes/userAuthRoutes")
-);
+app.use("/api/user", require("./routes/userAuthRoutes"));
 
 /* =========================================
    USER ACTIONS
 ========================================= */
 
-app.use(
-  "/api/user",
-  require("./routes/userActionRoutes")
-);
+app.use("/api/user", require("./routes/userActionRoutes"));
 
 /* =========================================
    ADMIN API
 ========================================= */
 
-app.use(
-  "/api/admin",
-  require("./routes/adminRoutes")
-);
+app.use("/api/admin", require("./routes/adminRoutes"));
 
 /* =========================================
    PLAYLIST API
 ========================================= */
 
-app.use(
-  "/api/playlists",
-  require("./routes/playlistRoutes")
-);
+app.use("/api/playlists", require("./routes/playlistRoutes"));
 
 /* =========================================
    ARTIST API
 ========================================= */
 
-app.use(
-  "/api/artists",
-  require("./routes/artistRoutes")
-);
+app.use("/api/artists", require("./routes/artistRoutes"));
 
 /* =========================================
    ALBUM API
 ========================================= */
 
-app.use(
-  "/api/albums",
-  require("./routes/albumRoutes")
-);
+app.use("/api/albums", require("./routes/albumRoutes"));
 
 /* =========================================
    MEDIA API
 ========================================= */
 
-app.use(
-  "/api/media",
-  require("./routes/mediaRoutes")
-);
+app.use("/api/media", require("./routes/mediaRoutes"));
+
+/* =========================================
+   LYRICS API
+========================================= */
+
+app.use("/api/lyrics", require("./routes/lyricsRoutes"));
+
+/* =========================================
+   HOME API
+========================================= */
+
+app.use("/api/home", require("./routes/homeRoutes"));
+
+/* =========================================
+   PUBLIC API — NAYA (no auth required)
+========================================= */
+
+app.use("/api/public", require("./routes/publicRoutes"));
 
 /* =========================================
    PLAN API
 ========================================= */
 
-app.use(
-  "/api/plans",
-  require("./routes/planRoutes")
-);
+app.use("/api/plans", require("./routes/planRoutes"));
 
 /* =========================================
    SUBSCRIPTION API
 ========================================= */
 
-app.use(
-  "/api/subscriptions",
-  require("./routes/subscriptionRoutes")
-);
+app.use("/api/subscriptions", require("./routes/subscriptionRoutes"));
 
 /* =========================================
    ADS API
 ========================================= */
 
-app.use(
-  "/api/ads",
-  require("./routes/adRoutes")
-);
+app.use("/api/ads", require("./routes/adRoutes"));
 
 /* =========================================
    AD NETWORKS API
 ========================================= */
 
-app.use(
-  "/api/ad-networks",
-  require("./routes/adNetworkRoutes")
-);
+app.use("/api/ad-networks", require("./routes/adNetworkRoutes"));
 
 /* =========================================
    404
 ========================================= */
 
 app.use((req, res) => {
-  console.log(
-    "❌ 404:",
-    req.method,
-    req.originalUrl
-  );
+  console.log("❌ 404:", req.method, req.originalUrl);
 
   res.status(404).json({
     success: false,
