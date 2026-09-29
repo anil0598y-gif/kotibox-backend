@@ -12,6 +12,13 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY || "887255579813446",
   api_secret:
     process.env.CLOUDINARY_API_SECRET || "uX8HkG0kSZbVIGieMlj6l_23Hno",
+  secure: true,
+});
+
+console.log("✅ Cloudinary configured:", {
+  cloud_name: cloudinary.config().cloud_name,
+  has_api_key: !!cloudinary.config().api_key,
+  has_api_secret: !!cloudinary.config().api_secret,
 });
 
 /* =========================================================
@@ -23,7 +30,7 @@ const storage = new CloudinaryStorage({
 
   params: async (req, file) => {
     /* =====================================================
-       FOLDER DECIDE KARO (req.baseUrl se)
+       FOLDER DECIDE
     ===================================================== */
 
     let folder = "kotibox";
@@ -40,7 +47,8 @@ const storage = new CloudinaryStorage({
       folder = "kotibox/media";
     } else if (
       req.baseUrl.includes("/users") ||
-      req.baseUrl.includes("/user")
+      req.baseUrl.includes("/user") ||
+      req.baseUrl.includes("/auth")
     ) {
       folder = "kotibox/users";
     } else if (req.baseUrl.includes("/ads")) {
@@ -54,7 +62,7 @@ const storage = new CloudinaryStorage({
     }
 
     /* =====================================================
-       RESOURCE TYPE DECIDE KARO
+       RESOURCE TYPE
     ===================================================== */
 
     let resourceType = "image";
@@ -64,30 +72,15 @@ const storage = new CloudinaryStorage({
     } else if (file.mimetype && file.mimetype.startsWith("video/")) {
       resourceType = "video";
     } else if (file.mimetype && file.mimetype.startsWith("audio/")) {
-      resourceType = "video"; // Cloudinary audio ko video me rakhta hai
+      resourceType = "video"; // Cloudinary audio = video
     } else {
-      resourceType = "raw"; // Docs, PDFs
+      resourceType = "raw";
     }
 
+    // ✅ SIMPLE RETURN — allowed_formats hata diya
     return {
       folder: folder,
       resource_type: resourceType,
-      allowed_formats: [
-        "jpg",
-        "jpeg",
-        "png",
-        "gif",
-        "webp",
-        "jfif",
-        "mp3",
-        "wav",
-        "m4a",
-        "mp4",
-        "mov",
-        "avi",
-        "pdf",
-        "txt",
-      ],
     };
   },
 });
@@ -99,11 +92,7 @@ const storage = new CloudinaryStorage({
 const fileFilter = (req, file, cb) => {
   const fieldName = file.fieldname;
 
-  /* =======================================================
-     MEDIA LIBRARY
-     upload.single("file") — image, audio, video, doc
-  ======================================================= */
-
+  // MEDIA LIBRARY
   if (fieldName === "file") {
     if (
       file.mimetype &&
@@ -115,14 +104,10 @@ const fileFilter = (req, file, cb) => {
     ) {
       return cb(null, true);
     }
-
     return cb(new Error("Unsupported Media Library file type"));
   }
 
-  /* =======================================================
-     ADS — mediaFile (image or video)
-  ======================================================= */
-
+  // ADS
   if (fieldName === "mediaFile" || fieldName === "media") {
     if (
       file.mimetype &&
@@ -131,26 +116,17 @@ const fileFilter = (req, file, cb) => {
     ) {
       return cb(null, true);
     }
-
     return cb(new Error("Ad media must be an image or video file"));
   }
-
-  /* =======================================================
-     ADS — thumbnailFile (image only)
-  ======================================================= */
 
   if (fieldName === "thumbnailFile") {
     if (file.mimetype && file.mimetype.startsWith("image/")) {
       return cb(null, true);
     }
-
     return cb(new Error("Ad thumbnail must be an image"));
   }
 
-  /* =======================================================
-     IMAGE
-  ======================================================= */
-
+  // IMAGE
   if (
     fieldName === "image" ||
     fieldName === "coverImage" ||
@@ -161,53 +137,34 @@ const fileFilter = (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith("image/")) {
       return cb(null, true);
     }
-
     return cb(new Error("Only image files are allowed"));
   }
 
-  /* =======================================================
-     AUDIO
-  ======================================================= */
-
+  // AUDIO
   if (fieldName === "audio" || fieldName === "audioFile") {
     if (file.mimetype && file.mimetype.startsWith("audio/")) {
       return cb(null, true);
     }
-
     return cb(new Error("Only audio files are allowed"));
   }
 
-  /* =======================================================
-     VIDEO
-  ======================================================= */
-
+  // VIDEO
   if (fieldName === "musicVideo" || fieldName === "lyricVideo") {
     if (file.mimetype && file.mimetype.startsWith("video/")) {
       return cb(null, true);
     }
-
     return cb(new Error("Only video files are allowed"));
   }
 
-  /* =======================================================
-     LYRICS FILE
-  ======================================================= */
-
+  // LYRICS
   if (fieldName === "lyricsFile") {
     const allowedExtensions = [".txt", ".lrc", ".srt", ".vtt"];
-
     const extension = path.extname(file.originalname).toLowerCase();
-
     if (allowedExtensions.includes(extension)) {
       return cb(null, true);
     }
-
     return cb(new Error("Lyrics file must be TXT, LRC, SRT or VTT"));
   }
-
-  /* =======================================================
-     UNSUPPORTED FIELD
-  ======================================================= */
 
   return cb(new Error(`Unsupported upload field: ${fieldName}`));
 };
@@ -219,7 +176,6 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-
   limits: {
     fileSize: 500 * 1024 * 1024, // 500 MB
   },
