@@ -2,6 +2,7 @@ const User = require("../models/User");
 const Song = require("../models/Song");
 const Artist = require("../models/Artist");
 const Playlist = require("../models/Playlist");
+const Plan = require("../models/Plan");
 
 /* =========================================
    ✅ GET ALL SONGS
@@ -9,19 +10,10 @@ const Playlist = require("../models/Playlist");
 const getAllSongs = async (req, res) => {
   try {
     const songs = await Song.find().sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: songs.length,
-      songs,
-      data: songs,
-    });
+    res.status(200).json({ success: true, count: songs.length, songs, data: songs });
   } catch (error) {
     console.error("GET ALL SONGS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch songs",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch songs" });
   }
 };
 
@@ -31,12 +23,10 @@ const getAllSongs = async (req, res) => {
 const getAllAlbums = async (req, res) => {
   try {
     const songs = await Song.find().sort({ createdAt: -1 });
-
     const albumsMap = new Map();
 
     songs.forEach((song) => {
       const albumName = song.album || "Unknown Album";
-
       if (!albumsMap.has(albumName)) {
         albumsMap.set(albumName, {
           _id: albumName,
@@ -46,24 +36,14 @@ const getAllAlbums = async (req, res) => {
           songs: [],
         });
       }
-
       albumsMap.get(albumName).songs.push(song);
     });
 
     const albums = Array.from(albumsMap.values());
-
-    res.status(200).json({
-      success: true,
-      count: albums.length,
-      albums,
-      data: albums,
-    });
+    res.status(200).json({ success: true, count: albums.length, albums, data: albums });
   } catch (error) {
     console.error("GET ALL ALBUMS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch albums",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch albums" });
   }
 };
 
@@ -73,19 +53,10 @@ const getAllAlbums = async (req, res) => {
 const getAllArtists = async (req, res) => {
   try {
     const artists = await Artist.find().sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: artists.length,
-      artists,
-      data: artists,
-    });
+    res.status(200).json({ success: true, count: artists.length, artists, data: artists });
   } catch (error) {
     console.error("GET ALL ARTISTS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch artists",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch artists" });
   }
 };
 
@@ -98,37 +69,21 @@ const likeSong = async (req, res) => {
     const userId = req.user._id;
 
     const song = await Song.findById(songId);
-    if (!song) {
-      return res.status(404).json({ success: false, message: "Song not found" });
-    }
+    if (!song) return res.status(404).json({ success: false, message: "Song not found" });
 
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    const alreadyLiked = user.likedSongs.some(
-      (id) => String(id) === String(songId)
-    );
-
-    if (alreadyLiked) {
-      return res.status(200).json({ success: true, message: "Song already liked" });
-    }
+    const alreadyLiked = user.likedSongs.some((id) => String(id) === String(songId));
+    if (alreadyLiked) return res.status(200).json({ success: true, message: "Song already liked" });
 
     user.likedSongs.push(songId);
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Song liked successfully",
-      likedSongs: user.likedSongs,
-    });
+    res.status(200).json({ success: true, message: "Song liked successfully", likedSongs: user.likedSongs });
   } catch (error) {
     console.error("LIKE SONG ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to like song",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to like song" });
   }
 };
 
@@ -141,27 +96,15 @@ const unlikeSong = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    user.likedSongs = user.likedSongs.filter(
-      (id) => String(id) !== String(songId)
-    );
-
+    user.likedSongs = user.likedSongs.filter((id) => String(id) !== String(songId));
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Song unliked",
-      likedSongs: user.likedSongs,
-    });
+    res.status(200).json({ success: true, message: "Song unliked", likedSongs: user.likedSongs });
   } catch (error) {
     console.error("UNLIKE SONG ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to unlike song",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to unlike song" });
   }
 };
 
@@ -171,12 +114,8 @@ const unlikeSong = async (req, res) => {
 const getLikedSongs = async (req, res) => {
   try {
     const userId = req.user._id;
-
     const user = await User.findById(userId).populate("likedSongs");
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     res.status(200).json({
       success: true,
@@ -186,57 +125,35 @@ const getLikedSongs = async (req, res) => {
     });
   } catch (error) {
     console.error("GET LIKED SONGS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch liked songs",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch liked songs" });
   }
 };
 
 /* =========================================
-   ✅ ADD TO HISTORY  ← FIXED WITH DEBUG
+   ✅ ADD TO HISTORY
 ========================================= */
 const addToHistory = async (req, res) => {
   try {
     const { songId } = req.params;
     const userId = req.user._id;
 
-    console.log("🔍 ADD TO HISTORY CALLED:");
-    console.log("   songId:", songId);
-    console.log("   userId:", userId);
-
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    // ✅ recentlyPlayed array check karo
-    if (!Array.isArray(user.recentlyPlayed)) {
-      user.recentlyPlayed = [];
-    }
+    if (!Array.isArray(user.recentlyPlayed)) user.recentlyPlayed = [];
 
-    // ✅ Purana entry hatao
     user.recentlyPlayed = user.recentlyPlayed.filter(
       (item) => String(item.song) !== String(songId)
     );
 
-    // ✅ Naya entry add karo
-    user.recentlyPlayed.unshift({
-      song: songId,
-      playedAt: new Date(),
-    });
+    user.recentlyPlayed.unshift({ song: songId, playedAt: new Date() });
 
-    // ✅ Sirf last 50 rakho
     if (user.recentlyPlayed.length > 50) {
       user.recentlyPlayed = user.recentlyPlayed.slice(0, 50);
     }
 
-    // ✅ songsPlayed count badhao
     user.songsPlayed = (user.songsPlayed || 0) + 1;
-
     await user.save();
-
-    console.log("✅ History added. Total:", user.recentlyPlayed.length);
 
     res.status(200).json({
       success: true,
@@ -245,48 +162,25 @@ const addToHistory = async (req, res) => {
     });
   } catch (error) {
     console.error("ADD HISTORY ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to add history",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to add history" });
   }
 };
 
 /* =========================================
-   ✅ GET HISTORY  ← FIXED WITH DEBUG
+   ✅ GET HISTORY
 ========================================= */
 const getHistory = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    console.log("🔍 GET HISTORY CALLED:");
-    console.log("   userId:", userId);
-
     const user = await User.findById(userId).populate("recentlyPlayed.song");
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    console.log("   recentlyPlayed raw length:", user.recentlyPlayed?.length);
-
-    // ✅ Filter karo — sirf woh jinka song exist karta hai
     const history = (user.recentlyPlayed || []).filter((item) => item.song);
 
-    console.log("   history after filter:", history.length);
-
-    res.status(200).json({
-      success: true,
-      count: history.length,
-      history: history,
-      data: history,
-    });
+    res.status(200).json({ success: true, count: history.length, history, data: history });
   } catch (error) {
     console.error("GET HISTORY ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch history",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch history" });
   }
 };
 
@@ -296,11 +190,8 @@ const getHistory = async (req, res) => {
 const clearHistory = async (req, res) => {
   try {
     const userId = req.user._id;
-
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     user.recentlyPlayed = [];
     await user.save();
@@ -308,10 +199,7 @@ const clearHistory = async (req, res) => {
     res.status(200).json({ success: true, message: "History cleared" });
   } catch (error) {
     console.error("CLEAR HISTORY ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to clear history",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to clear history" });
   }
 };
 
@@ -324,24 +212,17 @@ const followArtist = async (req, res) => {
     const userId = req.user._id;
 
     const artist = await Artist.findById(artistId);
-    if (!artist) {
-      return res.status(404).json({ success: false, message: "Artist not found" });
-    }
+    if (!artist) return res.status(404).json({ success: false, message: "Artist not found" });
 
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     const alreadyFollowing = user.followedArtists.some(
       (id) => String(id) === String(artistId)
     );
 
     if (alreadyFollowing) {
-      return res.status(200).json({
-        success: true,
-        message: "Already following artist",
-      });
+      return res.status(200).json({ success: true, message: "Already following artist" });
     }
 
     user.followedArtists.push(artistId);
@@ -354,10 +235,7 @@ const followArtist = async (req, res) => {
     });
   } catch (error) {
     console.error("FOLLOW ARTIST ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to follow artist",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to follow artist" });
   }
 };
 
@@ -370,14 +248,11 @@ const unfollowArtist = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     user.followedArtists = user.followedArtists.filter(
       (id) => String(id) !== String(artistId)
     );
-
     await user.save();
 
     res.status(200).json({
@@ -387,10 +262,7 @@ const unfollowArtist = async (req, res) => {
     });
   } catch (error) {
     console.error("UNFOLLOW ARTIST ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to unfollow artist",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to unfollow artist" });
   }
 };
 
@@ -400,12 +272,8 @@ const unfollowArtist = async (req, res) => {
 const getFollowing = async (req, res) => {
   try {
     const userId = req.user._id;
-
     const user = await User.findById(userId).populate("followedArtists");
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     res.status(200).json({
       success: true,
@@ -415,10 +283,7 @@ const getFollowing = async (req, res) => {
     });
   } catch (error) {
     console.error("GET FOLLOWING ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch following",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch following" });
   }
 };
 
@@ -431,10 +296,7 @@ const createUserPlaylist = async (req, res) => {
     const { name, description, isPublic } = req.body;
 
     if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Playlist name is required",
-      });
+      return res.status(400).json({ success: false, message: "Playlist name is required" });
     }
 
     const playlist = await Playlist.create({
@@ -461,26 +323,16 @@ const createUserPlaylist = async (req, res) => {
     });
   } catch (error) {
     console.error("CREATE PLAYLIST ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to create playlist",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to create playlist" });
   }
 };
 
 /* =========================================
-   ✅ GET USER PLAYLISTS — FIXED
+   ✅ GET USER PLAYLISTS
 ========================================= */
 const getUserPlaylists = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    console.log("🔍 GET USER PLAYLISTS DEBUG:");
-    console.log("   userId:", userId);
-    console.log("   userId string:", String(userId));
-
-    const totalPlaylists = await Playlist.countDocuments();
-    console.log("   Total playlists in DB:", totalPlaylists);
 
     const playlists = await Playlist.find({
       $or: [
@@ -492,8 +344,6 @@ const getUserPlaylists = async (req, res) => {
       .populate("songs")
       .sort({ createdAt: -1 });
 
-    console.log("   User playlists found:", playlists.length);
-
     res.status(200).json({
       success: true,
       count: playlists.length,
@@ -502,10 +352,7 @@ const getUserPlaylists = async (req, res) => {
     });
   } catch (error) {
     console.error("GET USER PLAYLISTS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch playlists",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch playlists" });
   }
 };
 
@@ -519,9 +366,7 @@ const updatePlaylist = async (req, res) => {
     const { name, description, isPublic } = req.body;
 
     const playlist = await Playlist.findById(id);
-    if (!playlist) {
-      return res.status(404).json({ success: false, message: "Playlist not found" });
-    }
+    if (!playlist) return res.status(404).json({ success: false, message: "Playlist not found" });
 
     if (String(playlist.createdBy) !== String(userId)) {
       return res.status(403).json({ success: false, message: "Not authorized" });
@@ -541,10 +386,7 @@ const updatePlaylist = async (req, res) => {
     });
   } catch (error) {
     console.error("UPDATE PLAYLIST ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update playlist",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to update playlist" });
   }
 };
 
@@ -557,9 +399,7 @@ const deletePlaylist = async (req, res) => {
     const { id } = req.params;
 
     const playlist = await Playlist.findById(id);
-    if (!playlist) {
-      return res.status(404).json({ success: false, message: "Playlist not found" });
-    }
+    if (!playlist) return res.status(404).json({ success: false, message: "Playlist not found" });
 
     if (String(playlist.createdBy) !== String(userId)) {
       return res.status(403).json({ success: false, message: "Not authorized" });
@@ -569,19 +409,14 @@ const deletePlaylist = async (req, res) => {
 
     const user = await User.findById(userId);
     if (user && Array.isArray(user.userPlaylists)) {
-      user.userPlaylists = user.userPlaylists.filter(
-        (pid) => String(pid) !== String(id)
-      );
+      user.userPlaylists = user.userPlaylists.filter((pid) => String(pid) !== String(id));
       await user.save();
     }
 
     res.status(200).json({ success: true, message: "Playlist deleted" });
   } catch (error) {
     console.error("DELETE PLAYLIST ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to delete playlist",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to delete playlist" });
   }
 };
 
@@ -594,26 +429,17 @@ const addSongToPlaylist = async (req, res) => {
     const { id } = req.params;
     const { songId } = req.body;
 
-    if (!songId) {
-      return res.status(400).json({ success: false, message: "Song ID is required" });
-    }
+    if (!songId) return res.status(400).json({ success: false, message: "Song ID is required" });
 
     const playlist = await Playlist.findById(id);
-    if (!playlist) {
-      return res.status(404).json({ success: false, message: "Playlist not found" });
-    }
+    if (!playlist) return res.status(404).json({ success: false, message: "Playlist not found" });
 
     if (String(playlist.createdBy) !== String(userId)) {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
-    const alreadyIn = (playlist.songs || []).some(
-      (id) => String(id) === String(songId)
-    );
-
-    if (alreadyIn) {
-      return res.status(200).json({ success: true, message: "Song already in playlist" });
-    }
+    const alreadyIn = (playlist.songs || []).some((id) => String(id) === String(songId));
+    if (alreadyIn) return res.status(200).json({ success: true, message: "Song already in playlist" });
 
     playlist.songs = playlist.songs || [];
     playlist.songs.push(songId);
@@ -629,10 +455,7 @@ const addSongToPlaylist = async (req, res) => {
     });
   } catch (error) {
     console.error("ADD SONG ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to add song",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to add song" });
   }
 };
 
@@ -645,18 +468,13 @@ const removeSongFromPlaylist = async (req, res) => {
     const { id, songId } = req.params;
 
     const playlist = await Playlist.findById(id);
-    if (!playlist) {
-      return res.status(404).json({ success: false, message: "Playlist not found" });
-    }
+    if (!playlist) return res.status(404).json({ success: false, message: "Playlist not found" });
 
     if (String(playlist.createdBy) !== String(userId)) {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
-    playlist.songs = (playlist.songs || []).filter(
-      (id) => String(id) !== String(songId)
-    );
-
+    playlist.songs = (playlist.songs || []).filter((id) => String(id) !== String(songId));
     await playlist.save();
 
     const updated = await Playlist.findById(id).populate("songs");
@@ -669,10 +487,7 @@ const removeSongFromPlaylist = async (req, res) => {
     });
   } catch (error) {
     console.error("REMOVE SONG ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to remove song",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to remove song" });
   }
 };
 
@@ -690,21 +505,14 @@ const searchSongs = async (req, res) => {
     const searchRegex = new RegExp(q.trim(), "i");
 
     const songs = await Song.find({
-      $or: [
-        { title: searchRegex },
-        { artist: searchRegex },
-        { album: searchRegex },
-      ],
+      $or: [{ title: searchRegex }, { artist: searchRegex }, { album: searchRegex }],
       status: { $ne: "Archived" },
     }).limit(50);
 
     res.status(200).json({ success: true, count: songs.length, songs, data: songs });
   } catch (error) {
     console.error("SEARCH SONGS ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to search songs",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to search songs" });
   }
 };
 
@@ -720,19 +528,10 @@ const getSongsByGenre = async (req, res) => {
       status: { $ne: "Archived" },
     }).limit(100);
 
-    res.status(200).json({
-      success: true,
-      count: songs.length,
-      genre,
-      songs,
-      data: songs,
-    });
+    res.status(200).json({ success: true, count: songs.length, genre, songs, data: songs });
   } catch (error) {
     console.error("GET SONGS BY GENRE ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch songs",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch songs" });
   }
 };
 
@@ -744,9 +543,7 @@ const getSongsByArtist = async (req, res) => {
     const { artistId } = req.params;
 
     const artist = await Artist.findById(artistId);
-    if (!artist) {
-      return res.status(404).json({ success: false, message: "Artist not found" });
-    }
+    if (!artist) return res.status(404).json({ success: false, message: "Artist not found" });
 
     const songs = await Song.find({
       artist: new RegExp(`^${artist.name}$`, "i"),
@@ -762,10 +559,7 @@ const getSongsByArtist = async (req, res) => {
     });
   } catch (error) {
     console.error("GET SONGS BY ARTIST ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch songs",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch songs" });
   }
 };
 
@@ -777,21 +571,12 @@ const streamSong = async (req, res) => {
     const { id } = req.params;
 
     const song = await Song.findById(id);
-    if (!song) {
-      return res.status(404).json({ success: false, message: "Song not found" });
-    }
+    if (!song) return res.status(404).json({ success: false, message: "Song not found" });
 
-    res.status(200).json({
-      success: true,
-      audioUrl: song.audioUrl,
-      song,
-    });
+    res.status(200).json({ success: true, audioUrl: song.audioUrl, song });
   } catch (error) {
     console.error("STREAM SONG ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to stream song",
-    });
+    res.status(500).json({ success: false, message: error.message || "Failed to stream song" });
   }
 };
 
@@ -802,15 +587,8 @@ const incrementPlayCount = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const song = await Song.findByIdAndUpdate(
-      id,
-      { $inc: { plays: 1 } },
-      { new: true }
-    );
-
-    if (!song) {
-      return res.status(404).json({ success: false, message: "Song not found" });
-    }
+    const song = await Song.findByIdAndUpdate(id, { $inc: { plays: 1 } }, { new: true });
+    if (!song) return res.status(404).json({ success: false, message: "Song not found" });
 
     res.status(200).json({
       success: true,
@@ -820,10 +598,161 @@ const incrementPlayCount = async (req, res) => {
     });
   } catch (error) {
     console.error("PLAY COUNT ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update play count",
+    res.status(500).json({ success: false, message: error.message || "Failed to update play count" });
+  }
+};
+
+/* =========================================
+   ✅ SUBSCRIBE TO PLAN — Free + Paid dono
+========================================= */
+const subscribeToPlan = async (req, res) => {
+  try {
+    const { planId, planName } = req.body;
+    const userId = req.user._id;
+
+    // =========================================
+    // ✅ FREE PLAN — Direct set karo (payment nahi)
+    // =========================================
+    if (planName === "Free" || planId === "free") {
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          plan: "Free",
+          planId: null,
+          subscriptionStatus: "inactive",
+          subscriptionStart: null,
+          subscriptionEnd: null,
+        },
+        { new: true }
+      ).select("-password");
+
+      if (!updatedUser) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Plan changed to Free",
+        user: updatedUser,
+      });
+    }
+
+    // =========================================
+    // ✅ PAID PLAN — planId verify karo
+    // =========================================
+    if (!planId) {
+      return res.status(400).json({ success: false, message: "planId is required" });
+    }
+
+    const plan = await Plan.findById(planId);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: "Plan not found" });
+    }
+
+    const now = new Date();
+    const endDate = new Date(now);
+
+    if (plan.billingCycle === "Yearly") {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1);
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        plan: plan.name,
+        planId: plan._id,
+        subscriptionStatus: "active",
+        subscriptionStart: now,
+        subscriptionEnd: endDate,
+      },
+      { new: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully subscribed to ${plan.name}`,
+      user: updatedUser,
+      subscription: {
+        plan: plan.name,
+        startDate: now,
+        endDate: endDate,
+        status: "active",
+      },
     });
+  } catch (error) {
+    console.error("SUBSCRIBE ERROR:", error);
+    res.status(500).json({ success: false, message: error.message || "Subscription failed" });
+  }
+};
+
+/* =========================================
+   ✅ CANCEL SUBSCRIPTION
+========================================= */
+const cancelSubscription = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        plan: "Free",
+        planId: null,
+        subscriptionStatus: "cancelled",
+        subscriptionStart: null,
+        subscriptionEnd: new Date(),
+      },
+      { new: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Subscription cancelled successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("CANCEL SUBSCRIPTION ERROR:", error);
+    res.status(500).json({ success: false, message: error.message || "Cancel failed" });
+  }
+};
+
+/* =========================================
+   ✅ GET MY SUBSCRIPTION
+========================================= */
+const getMySubscription = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).select(
+      "plan planId subscriptionStatus subscriptionStart subscriptionEnd"
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      subscription: {
+        plan: user.plan || "Free",
+        planId: user.planId,
+        status: user.subscriptionStatus || "inactive",
+        startDate: user.subscriptionStart,
+        endDate: user.subscriptionEnd,
+      },
+    });
+  } catch (error) {
+    console.error("GET SUBSCRIPTION ERROR:", error);
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch subscription" });
   }
 };
 
@@ -854,4 +783,7 @@ module.exports = {
   getSongsByArtist,
   streamSong,
   incrementPlayCount,
+  subscribeToPlan,
+  cancelSubscription,
+  getMySubscription,
 };

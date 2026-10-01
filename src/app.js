@@ -21,7 +21,7 @@ console.log("📁 UPLOADS EXISTS:", fs.existsSync(UPLOADS_PATH));
 console.log("=========================================");
 
 /* =========================================
-   CORS — FIXED
+   CORS
 ========================================= */
 
 const allowedOrigins = [
@@ -34,21 +34,11 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      if (process.env.NODE_ENV !== "production") {
-        return callback(null, true);
-      }
-
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (process.env.NODE_ENV !== "production") return callback(null, true);
       return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
-
     credentials: true,
   })
 );
@@ -57,28 +47,14 @@ app.use(
    BODY PARSER
 ========================================= */
 
-app.use(
-  express.json({
-    limit: "100mb",
-  })
-);
-
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: "100mb",
-  })
-);
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
 /* =========================================
-   STATIC PUBLIC FILES
+   STATIC FILES
 ========================================= */
 
 app.use(express.static(PUBLIC_PATH));
-
-/* =========================================
-   UPLOADS
-========================================= */
 
 app.use(
   "/uploads",
@@ -93,10 +69,6 @@ app.use(
   })
 );
 
-/* =========================================
-   IMAGES
-========================================= */
-
 app.use(
   "/images",
   express.static(IMAGES_PATH, {
@@ -106,12 +78,11 @@ app.use(
 );
 
 /* =========================================
-   TEST UPLOAD ROUTE
+   TEST ROUTES
 ========================================= */
 
 app.get("/test-upload", (req, res) => {
   const testFolder = path.join(UPLOADS_PATH, "songs");
-
   let files = [];
 
   try {
@@ -132,131 +103,47 @@ app.get("/test-upload", (req, res) => {
   });
 });
 
-/* =========================================
-   ROOT
-========================================= */
-
 app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Backend API is running",
-  });
+  res.json({ success: true, message: "Backend API is running" });
 });
-
-/* =========================================
-   HEALTH
-========================================= */
 
 app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Backend is healthy",
-  });
+  res.json({ success: true, message: "Backend is healthy" });
 });
 
 /* =========================================
-   SONG API
+   API ROUTES
 ========================================= */
 
 app.use("/api/songs", require("./routes/songRoutes"));
-
-/* =========================================
-   ADMIN USER MANAGEMENT
-========================================= */
-
 app.use("/api/users", require("./routes/userRoutes"));
-
-/* =========================================
-   USER AUTH
-========================================= */
-
 app.use("/api/user", require("./routes/userAuthRoutes"));
-
-/* =========================================
-   USER ACTIONS
-========================================= */
-
 app.use("/api/user", require("./routes/userActionRoutes"));
-
-/* =========================================
-   ADMIN API
-========================================= */
-
 app.use("/api/admin", require("./routes/adminRoutes"));
-
-/* =========================================
-   PLAYLIST API
-========================================= */
-
 app.use("/api/playlists", require("./routes/playlistRoutes"));
-
-/* =========================================
-   ARTIST API
-========================================= */
-
 app.use("/api/artists", require("./routes/artistRoutes"));
-
-/* =========================================
-   ALBUM API
-========================================= */
-
 app.use("/api/albums", require("./routes/albumRoutes"));
-
-/* =========================================
-   MEDIA API
-========================================= */
-
 app.use("/api/media", require("./routes/mediaRoutes"));
-
-/* =========================================
-   LYRICS API
-========================================= */
-
 app.use("/api/lyrics", require("./routes/lyricsRoutes"));
-
-/* =========================================
-   HOME API
-========================================= */
-
 app.use("/api/home", require("./routes/homeRoutes"));
-
-/* =========================================
-   PUBLIC API — NAYA (no auth required)
-========================================= */
-
 app.use("/api/public", require("./routes/publicRoutes"));
-
-/* =========================================
-   PLAN API
-========================================= */
-
 app.use("/api/plans", require("./routes/planRoutes"));
-
-/* =========================================
-   SUBSCRIPTION API
-========================================= */
-
 app.use("/api/subscriptions", require("./routes/subscriptionRoutes"));
-
-/* =========================================
-   ADS API
-========================================= */
-
 app.use("/api/ads", require("./routes/adRoutes"));
-
-/* =========================================
-   AD NETWORKS API
-========================================= */
-
 app.use("/api/ad-networks", require("./routes/adNetworkRoutes"));
 
 /* =========================================
-   404
+   ✅ RAZORPAY PAYMENT ROUTES  👈 NAYA
+========================================= */
+
+app.use("/api/payment", require("./routes/paymentRoutes"));
+
+/* =========================================
+   404 HANDLER
 ========================================= */
 
 app.use((req, res) => {
   console.log("❌ 404:", req.method, req.originalUrl);
-
   res.status(404).json({
     success: false,
     message: "Route not found",
@@ -270,7 +157,6 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error("❌ Server Error:", err);
-
   res.status(500).json({
     success: false,
     message: "Internal Server Error",

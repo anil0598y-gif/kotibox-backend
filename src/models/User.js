@@ -22,16 +22,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
-    /* =========================================
-       ✅ PHONE — unique NAHI, kyunki phone optional hai
-       (direct register me phone nahi le rahe)
-    ========================================= */
     phone: {
       type: String,
       default: "",
       trim: true,
-      // unique: true,   ← HATA diya
-      // sparse: true,   ← HATA diya
     },
 
     password: {
@@ -66,11 +60,39 @@ const userSchema = new mongoose.Schema(
       default: "User",
     },
 
+    /* =========================================
+       ✅ SUBSCRIPTION FIELDS  👈 NAYA
+    ========================================= */
     plan: {
       type: String,
       default: "Free",
     },
 
+    planId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Plan",
+      default: null,
+    },
+
+    subscriptionStatus: {
+      type: String,
+      enum: ["active", "inactive", "cancelled", "expired"],
+      default: "inactive",
+    },
+
+    subscriptionStart: {
+      type: Date,
+      default: null,
+    },
+
+    subscriptionEnd: {
+      type: Date,
+      default: null,
+    },
+
+    /* =========================================
+       ✅ OTHER FIELDS
+    ========================================= */
     status: {
       type: String,
       enum: ["Active", "Inactive", "Suspended"],

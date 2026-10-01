@@ -25,6 +25,137 @@ const generateUserToken = (userId, email) => {
 };
 
 /* =========================================
+   ✅ GET ALL USERS  👈 NAYA — Admin panel ke liye
+========================================= */
+router.get("/", async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("-password -otp -phoneOtp -otpExpiry -phoneOtpExpiry")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      users,
+      data: users,
+    });
+  } catch (error) {
+    console.error("GET ALL USERS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch users",
+    });
+  }
+});
+
+/* =========================================
+   ✅ GET USER BY ID  👈 NAYA
+========================================= */
+router.get("/:id", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select(
+      "-password -otp -phoneOtp -otpExpiry -phoneOtpExpiry"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      user,
+      data: user,
+    });
+  } catch (error) {
+    console.error("GET USER ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch user",
+    });
+  }
+});
+
+/* =========================================
+   ✅ UPDATE USER  👈 NAYA
+========================================= */
+router.put("/:id", async (req, res) => {
+  try {
+    const updates = { ...req.body };
+
+    // ✅ Password ko hash karo agar bheja gaya ho
+    if (updates.password) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+    } else {
+      delete updates.password;
+    }
+
+    // ✅ Sensitive fields remove kar do
+    delete updates._id;
+    delete updates.__v;
+    delete updates.otp;
+    delete updates.otpExpiry;
+    delete updates.phoneOtp;
+    delete updates.phoneOtpExpiry;
+
+    const updated = await User.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true, runValidators: true }
+    ).select("-password -otp -phoneOtp -otpExpiry -phoneOtpExpiry");
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: updated,
+      data: updated,
+    });
+  } catch (error) {
+    console.error("UPDATE USER ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update user",
+    });
+  }
+});
+
+/* =========================================
+   ✅ DELETE USER  👈 NAYA
+========================================= */
+router.delete("/:id", async (req, res) => {
+  try {
+    const deleted = await User.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.error("DELETE USER ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to delete user",
+    });
+  }
+});
+
+/* =========================================
    REGISTER USER (ADMIN SIDE)
 ========================================= */
 router.post("/register", async (req, res) => {
@@ -131,7 +262,7 @@ router.post("/login", async (req, res) => {
 /* =========================================
    GET MY PROFILE (ADMIN SIDE)
 ========================================= */
-router.get("/profile", verifyAdminToken, async (req, res) => {
+router.get("/profile/me", verifyAdminToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
 
@@ -159,7 +290,7 @@ router.get("/profile", verifyAdminToken, async (req, res) => {
 /* =========================================
    UPDATE PROFILE (ADMIN SIDE)
 ========================================= */
-router.put("/profile", verifyAdminToken, async (req, res) => {
+router.put("/profile/me", verifyAdminToken, async (req, res) => {
   try {
     const { name, email, avatar } = req.body;
 
