@@ -3,7 +3,8 @@ const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const multer = require("multer");
 
-const Admin = require("../models/Admin");
+/* ✅ User model — kyunki tera admin `users` collection mein hai */
+const User = require("../models/User");
 const LoginHistory = require("../models/LoginHistory");
 const {
   generateToken,
@@ -36,7 +37,7 @@ const storage = new CloudinaryStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, /* 5MB */
+    fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) {
@@ -83,17 +84,11 @@ const parseUserAgent = (userAgent = "") => {
    HELPER: SAVE LOGIN HISTORY
 ========================================================= */
 
-const saveLoginHistory = async (
-  adminId,
-  req,
-  status = "success"
-) => {
+const saveLoginHistory = async (adminId, req, status = "success") => {
   try {
-    const userAgent =
-      req.headers["user-agent"] || "";
+    const userAgent = req.headers["user-agent"] || "";
 
-    const { device, browser, os } =
-      parseUserAgent(userAgent);
+    const { device, browser, os } = parseUserAgent(userAgent);
 
     await LoginHistory.create({
       admin: adminId,
@@ -109,15 +104,12 @@ const saveLoginHistory = async (
       status,
     });
   } catch (error) {
-    console.warn(
-      "Login history save failed:",
-      error.message
-    );
+    console.warn("Login history save failed:", error.message);
   }
 };
 
 /* =========================================================
-   LOGIN ADMIN
+   ✅ LOGIN ADMIN — User model use kar raha hai
 ========================================================= */
 
 exports.loginAdmin = async (req, res) => {
@@ -131,8 +123,10 @@ exports.loginAdmin = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findOne({
+    // ✅ User model mein dhoondh + role check
+    const admin = await User.findOne({
       email: String(email).toLowerCase().trim(),
+      role: "Administrator",
     }).select("+password");
 
     if (!admin) {
@@ -140,26 +134,34 @@ exports.loginAdmin = async (req, res) => {
 
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Email not found or not an admin account",
       });
     }
 
-    const isMatch = await admin.comparePassword(password);
+    // ✅ Password compare — User model ka method
+    let isMatch = false;
+
+    if (typeof admin.comparePassword === "function") {
+      isMatch = await admin.comparePassword(password);
+    } else {
+      // Fallback: bcrypt direct use
+      const bcrypt = require("bcryptjs");
+      isMatch = await bcrypt.compare(password, admin.password);
+    }
 
     if (!isMatch) {
       await saveLoginHistory(admin._id, req, "failed");
 
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Invalid password",
       });
     }
 
-    if (admin.status === "Inactive") {
+    if (admin.status === "Inactive" || admin.status === "Suspended") {
       return res.status(403).json({
         success: false,
-        message:
-          "Account is deactivated. Contact support.",
+        message: "Account is deactivated. Contact support.",
       });
     }
 
@@ -198,9 +200,7 @@ exports.loginAdmin = async (req, res) => {
 
 exports.getMyProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.admin.id).select(
-      "-password"
-    );
+    const admin = await User.findById(req.admin.id).select("-password");
 
     if (!admin) {
       return res.status(404).json({
@@ -223,42 +223,32 @@ exports.getMyProfile = async (req, res) => {
 };
 
 /* =========================================================
-   UPDATE MY PROFILE — WITH IMAGE (multipart/form-data)
+   UPDATE MY PROFILE — WITH IMAGE
 ========================================================= */
 
 exports.updateMyProfileWithImage = async (req, res) => {
   try {
-    const {
-      name,
-      username,
-      email,
-      phone,
-    } = req.body;
+    const { name, username, email, phone } = req.body;
 
     const updateData = {};
 
     if (name !== undefined) updateData.name = name;
-    if (username !== undefined)
-      updateData.username = username;
+    if (username !== undefined) updateData.username = username;
     if (email !== undefined) updateData.email = email;
     if (phone !== undefined) updateData.phone = phone;
 
-    /* ✅ अगर नई image upload हुई है */
     if (req.file) {
-      // ✅ Cloudinary full URL
       const imageUrl = req.file.path;
-
       updateData.avatar = imageUrl;
       updateData.profileImage = imageUrl;
     }
 
-    /* ✅ अगर image remove करनी है */
     if (req.body.removeImage === "true") {
       updateData.avatar = "";
       updateData.profileImage = "";
     }
 
-    const admin = await Admin.findByIdAndUpdate(
+    const admin = await User.findByIdAndUpdate(
       req.admin.id,
       updateData,
       {
@@ -280,10 +270,7 @@ exports.updateMyProfileWithImage = async (req, res) => {
       data: admin,
     });
   } catch (error) {
-    console.error(
-      "UPDATE PROFILE WITH IMAGE ERROR:",
-      error
-    );
+    console.error("UPDATE PROFILE WITH IMAGE ERROR:", error);
 
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
@@ -301,7 +288,7 @@ exports.updateMyProfileWithImage = async (req, res) => {
 };
 
 /* =========================================================
-   UPDATE MY PROFILE (JSON only — backward compatibility)
+   UPDATE MY PROFILE (JSON only)
 ========================================================= */
 
 exports.updateMyProfile = async (req, res) => {
@@ -328,7 +315,7 @@ exports.updateMyProfile = async (req, res) => {
       updateData.profileImage = img;
     }
 
-    const admin = await Admin.findByIdAndUpdate(
+    const admin = await User.findByIdAndUpdate(
       req.admin.id,
       updateData,
       {
@@ -389,9 +376,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(
-      req.admin.id
-    ).select("+password");
+    const admin = await User.findById(req.admin.id).select("+password");
 
     if (!admin) {
       return res.status(404).json({
@@ -400,9 +385,15 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const isMatch = await admin.comparePassword(
-      currentPassword
-    );
+    // ✅ Password compare
+    let isMatch = false;
+
+    if (typeof admin.comparePassword === "function") {
+      isMatch = await admin.comparePassword(currentPassword);
+    } else {
+      const bcrypt = require("bcryptjs");
+      isMatch = await bcrypt.compare(currentPassword, admin.password);
+    }
 
     if (!isMatch) {
       return res.status(401).json({
@@ -412,14 +403,10 @@ exports.changePassword = async (req, res) => {
     }
 
     admin.password = newPassword;
-
-    /* ✅ पुराने सारे tokens invalid करो */
-    admin.tokenVersion =
-      (admin.tokenVersion || 0) + 1;
+    admin.tokenVersion = (admin.tokenVersion || 0) + 1;
 
     await admin.save();
 
-    /* ✅ नया token दो (current session के लिए) */
     const newToken = generateToken(
       admin._id,
       admin.email,
@@ -428,8 +415,7 @@ exports.changePassword = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message:
-        "Password updated. All other sessions logged out.",
+      message: "Password updated. All other sessions logged out.",
       token: newToken,
     });
   } catch (error) {
@@ -447,7 +433,7 @@ exports.changePassword = async (req, res) => {
 
 exports.logoutAllDevices = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.admin.id);
+    const admin = await User.findById(req.admin.id);
 
     if (!admin) {
       return res.status(404).json({
@@ -456,15 +442,12 @@ exports.logoutAllDevices = async (req, res) => {
       });
     }
 
-    admin.tokenVersion =
-      (admin.tokenVersion || 0) + 1;
-
+    admin.tokenVersion = (admin.tokenVersion || 0) + 1;
     await admin.save();
 
     res.status(200).json({
       success: true,
-      message:
-        "Logged out from all devices. Please login again.",
+      message: "Logged out from all devices. Please login again.",
     });
   } catch (error) {
     console.error("LOGOUT ALL ERROR:", error);
@@ -490,9 +473,7 @@ exports.deactivateAccount = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(
-      req.admin.id
-    ).select("+password");
+    const admin = await User.findById(req.admin.id).select("+password");
 
     if (!admin) {
       return res.status(404).json({
@@ -501,7 +482,14 @@ exports.deactivateAccount = async (req, res) => {
       });
     }
 
-    const isMatch = await admin.comparePassword(password);
+    let isMatch = false;
+
+    if (typeof admin.comparePassword === "function") {
+      isMatch = await admin.comparePassword(password);
+    } else {
+      const bcrypt = require("bcryptjs");
+      isMatch = await bcrypt.compare(password, admin.password);
+    }
 
     if (!isMatch) {
       return res.status(401).json({
@@ -511,8 +499,7 @@ exports.deactivateAccount = async (req, res) => {
     }
 
     admin.status = "Inactive";
-    admin.tokenVersion =
-      (admin.tokenVersion || 0) + 1;
+    admin.tokenVersion = (admin.tokenVersion || 0) + 1;
 
     await admin.save();
 
@@ -535,7 +522,7 @@ exports.deactivateAccount = async (req, res) => {
 
 exports.createDefaultAdmin = async (req, res) => {
   try {
-    const existing = await Admin.findOne({
+    const existing = await User.findOne({
       email: "anil0598y@gmail.com",
     });
 
@@ -550,7 +537,7 @@ exports.createDefaultAdmin = async (req, res) => {
       });
     }
 
-    const admin = await Admin.create({
+    const admin = await User.create({
       name: "Anil",
       username: "anil",
       email: "anil0598y@gmail.com",
