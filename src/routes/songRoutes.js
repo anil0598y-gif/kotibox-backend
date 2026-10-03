@@ -1,4 +1,7 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const https = require("https");
 
 const {
   getSongs,
@@ -32,7 +35,7 @@ const songUpload = upload.fields([
 ]);
 
 /* ==========================================================================
-   ✅ DOWNLOAD SONG — Basic+ only
+   ✅ DOWNLOAD SONG — Proper File Download (Cloudinary proxy)
    ⚠️ Ye route /:id se PEHLE hona chahiye
 ========================================================================== */
 
@@ -43,7 +46,8 @@ router.get(
   async (req, res) => {
     try {
       const song = await Song.findById(req.params.songId);
-      if (!song) {
+
+      if (!song || !song.audioUrl) {
         return res.status(404).json({
           success: false,
           message: "Song not found",
@@ -81,11 +85,94 @@ router.get(
         songId: song._id,
       });
 
-      res.status(200).json({
-        success: true,
-        audioUrl: song.audioUrl,
-        title: song.title,
-        artist: song.artist,
+      // ✅ File name banao (browser ke liye)
+      const fileName = `${song.title} - ${
+        song.artist || "Unknown"
+      }.mp3`.replace(/[/\\?%*:|"<>]/g, "-");
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${encodeURIComponent(fileName)}"`
+      );
+      res.setHeader("Content-Type", "audio/mpeg");
+
+      const audioUrl = song.audioUrl;
+      console.log("🔍 Download URL:", audioUrl);
+
+      /* =========================================
+         ✅ LOCAL FILE — /uploads/songs/xxx.mp3
+      ========================================= */
+      if (audioUrl.startsWith("/")) {
+        const localPath = path.join(
+          __dirname,
+          "..",
+          "public",
+          audioUrl
+        );
+
+        console.log("📁 Local path:", localPath);
+
+        if (fs.existsSync(localPath)) {
+          return fs.createReadStream(localPath).pipe(res);
+        } else {
+          console.error("❌ Local file not found:", localPath);
+          return res.status(404).json({
+            success: false,
+            message: "Audio file not found on server",
+          });
+        }
+      }
+
+      /* =========================================
+         ✅ REMOTE FILE — Cloudinary / HTTP URL
+         Proxy karo taaki browser download kare
+      ========================================= */
+      if (audioUrl.startsWith("http")) {
+        console.log("🌐 Proxying from:", audioUrl);
+
+        return https
+          .get(audioUrl, (fileRes) => {
+            console.log(
+              "✅ Cloudinary response status:",
+              fileRes.statusCode
+            );
+
+            if (fileRes.statusCode !== 200) {
+              return res.status(404).json({
+                success: false,
+                message: "Failed to fetch audio from Cloudinary",
+              });
+            }
+
+            // ✅ Cloudinary headers forward karo
+            if (fileRes.headers["content-type"]) {
+              res.setHeader(
+                "Content-Type",
+                fileRes.headers["content-type"]
+              );
+            }
+
+            if (fileRes.headers["content-length"]) {
+              res.setHeader(
+                "Content-Length",
+                fileRes.headers["content-length"]
+              );
+            }
+
+            fileRes.pipe(res);
+          })
+          .on("error", (err) => {
+            console.error("❌ Proxy error:", err);
+            res.status(500).json({
+              success: false,
+              message: "Download failed — " + err.message,
+            });
+          });
+      }
+
+      return res.status(404).json({
+        success: false,
+        message: "Invalid audio URL",
       });
     } catch (err) {
       console.error("DOWNLOAD ERROR:", err);

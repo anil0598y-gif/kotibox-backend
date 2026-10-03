@@ -3,8 +3,8 @@ const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const multer = require("multer");
 
-/* ✅ User model — kyunki tera admin `users` collection mein hai */
-const User = require("../models/User");
+/* ✅ Admin model — kyunki tera admin `admins` collection mein hai */
+const Admin = require("../models/Admin");
 const LoginHistory = require("../models/LoginHistory");
 const {
   generateToken,
@@ -109,7 +109,7 @@ const saveLoginHistory = async (adminId, req, status = "success") => {
 };
 
 /* =========================================================
-   ✅ LOGIN ADMIN — User model use kar raha hai
+   ✅ LOGIN ADMIN — Admin model use kar raha hai
 ========================================================= */
 
 exports.loginAdmin = async (req, res) => {
@@ -123,10 +123,9 @@ exports.loginAdmin = async (req, res) => {
       });
     }
 
-    // ✅ User model mein dhoondh + role check
-    const admin = await User.findOne({
+    // ✅ Admin model mein dhoondh — `admins` collection
+    const admin = await Admin.findOne({
       email: String(email).toLowerCase().trim(),
-      role: "Administrator",
     }).select("+password");
 
     if (!admin) {
@@ -134,17 +133,16 @@ exports.loginAdmin = async (req, res) => {
 
       return res.status(401).json({
         success: false,
-        message: "Email not found or not an admin account",
+        message: "Invalid email or password",
       });
     }
 
-    // ✅ Password compare — User model ka method
+    // ✅ Password compare
     let isMatch = false;
 
     if (typeof admin.comparePassword === "function") {
       isMatch = await admin.comparePassword(password);
     } else {
-      // Fallback: bcrypt direct use
       const bcrypt = require("bcryptjs");
       isMatch = await bcrypt.compare(password, admin.password);
     }
@@ -154,7 +152,7 @@ exports.loginAdmin = async (req, res) => {
 
       return res.status(401).json({
         success: false,
-        message: "Invalid password",
+        message: "Invalid email or password",
       });
     }
 
@@ -200,7 +198,7 @@ exports.loginAdmin = async (req, res) => {
 
 exports.getMyProfile = async (req, res) => {
   try {
-    const admin = await User.findById(req.admin.id).select("-password");
+    const admin = await Admin.findById(req.admin.id).select("-password");
 
     if (!admin) {
       return res.status(404).json({
@@ -248,7 +246,7 @@ exports.updateMyProfileWithImage = async (req, res) => {
       updateData.profileImage = "";
     }
 
-    const admin = await User.findByIdAndUpdate(
+    const admin = await Admin.findByIdAndUpdate(
       req.admin.id,
       updateData,
       {
@@ -315,7 +313,7 @@ exports.updateMyProfile = async (req, res) => {
       updateData.profileImage = img;
     }
 
-    const admin = await User.findByIdAndUpdate(
+    const admin = await Admin.findByIdAndUpdate(
       req.admin.id,
       updateData,
       {
@@ -376,7 +374,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const admin = await User.findById(req.admin.id).select("+password");
+    const admin = await Admin.findById(req.admin.id).select("+password");
 
     if (!admin) {
       return res.status(404).json({
@@ -385,7 +383,6 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    // ✅ Password compare
     let isMatch = false;
 
     if (typeof admin.comparePassword === "function") {
@@ -433,7 +430,7 @@ exports.changePassword = async (req, res) => {
 
 exports.logoutAllDevices = async (req, res) => {
   try {
-    const admin = await User.findById(req.admin.id);
+    const admin = await Admin.findById(req.admin.id);
 
     if (!admin) {
       return res.status(404).json({
@@ -473,7 +470,7 @@ exports.deactivateAccount = async (req, res) => {
       });
     }
 
-    const admin = await User.findById(req.admin.id).select("+password");
+    const admin = await Admin.findById(req.admin.id).select("+password");
 
     if (!admin) {
       return res.status(404).json({
@@ -522,7 +519,7 @@ exports.deactivateAccount = async (req, res) => {
 
 exports.createDefaultAdmin = async (req, res) => {
   try {
-    const existing = await User.findOne({
+    const existing = await Admin.findOne({
       email: "anil0598y@gmail.com",
     });
 
@@ -537,7 +534,7 @@ exports.createDefaultAdmin = async (req, res) => {
       });
     }
 
-    const admin = await User.create({
+    const admin = await Admin.create({
       name: "Anil",
       username: "anil",
       email: "anil0598y@gmail.com",

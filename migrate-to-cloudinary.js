@@ -34,18 +34,18 @@ const Ad = require("./src/models/Ad");
 const uploadToCloudinary = async (filePath, folder) => {
   try {
     if (!fs.existsSync(filePath)) {
-      console.log(`❌ File not found: ${filePath}`);
+      console.log(`   ❌ File not found: ${filePath}`);
       return null;
     }
 
     const ext = path.extname(filePath).toLowerCase();
     let resourceType = "image";
 
-    if ([".mp3", ".wav", ".m4a", ".aac"].includes(ext)) {
+    if ([".mp3", ".wav", ".m4a", ".aac", ".ogg"].includes(ext)) {
       resourceType = "video";
-    } else if ([".mp4", ".mov", ".avi", ".mkv"].includes(ext)) {
+    } else if ([".mp4", ".mov", ".avi", ".mkv", ".webm"].includes(ext)) {
       resourceType = "video";
-    } else if ([".pdf", ".txt", ".doc"].includes(ext)) {
+    } else if ([".pdf", ".txt", ".doc", ".docx"].includes(ext)) {
       resourceType = "raw";
     }
 
@@ -58,7 +58,7 @@ const uploadToCloudinary = async (filePath, folder) => {
 
     return result.secure_url;
   } catch (error) {
-    console.error(`❌ Upload failed for ${filePath}:`, error.message);
+    console.error(`   ❌ Upload failed:`, error.message);
     return null;
   }
 };
@@ -69,12 +69,8 @@ const uploadToCloudinary = async (filePath, folder) => {
 
 const getLocalPath = (url) => {
   if (!url) return null;
-
   if (url.includes("cloudinary.com")) return null;
-
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return null;
-  }
+  if (url.startsWith("http://") || url.startsWith("https://")) return null;
 
   const cleanPath = url.replace(/^\/+/, "").replace(/^\\+/, "");
   const fullPath = path.join(__dirname, "public", cleanPath);
@@ -83,7 +79,7 @@ const getLocalPath = (url) => {
 };
 
 /* =========================================
-   MIGRATE SONGS
+   ✅ MIGRATE SONGS
 ========================================= */
 
 const migrateSongs = async () => {
@@ -97,24 +93,28 @@ const migrateSongs = async () => {
   for (const song of songs) {
     let changed = false;
 
-    const coverLocalPath = getLocalPath(song.imageUrl || song.coverImage);
+    // ✅ Cover — dono fields handle kar
+    const coverUrl = song.imageUrl || song.coverImage;
+    const coverLocalPath = getLocalPath(coverUrl);
+
     if (coverLocalPath) {
-      const newUrl = await uploadToCloudinary(coverLocalPath, "songs");
+      const newUrl = await uploadToCloudinary(coverLocalPath, "songs/covers");
       if (newUrl) {
-        song.imageUrl = newUrl;
-        song.coverImage = newUrl;
+        if (song.imageUrl) song.imageUrl = newUrl;
+        if (song.coverImage) song.coverImage = newUrl;
         changed = true;
-        console.log(`✅ Cover: ${song.title}`);
+        console.log(`   ✅ Cover: ${song.title}`);
       }
     }
 
+    // ✅ Audio
     const audioLocalPath = getLocalPath(song.audioUrl);
     if (audioLocalPath) {
-      const newUrl = await uploadToCloudinary(audioLocalPath, "songs");
+      const newUrl = await uploadToCloudinary(audioLocalPath, "songs/audio");
       if (newUrl) {
         song.audioUrl = newUrl;
         changed = true;
-        console.log(`✅ Audio: ${song.title}`);
+        console.log(`   ✅ Audio: ${song.title}`);
       }
     }
 
@@ -128,7 +128,7 @@ const migrateSongs = async () => {
 };
 
 /* =========================================
-   MIGRATE ARTISTS
+   ✅ MIGRATE ARTISTS
 ========================================= */
 
 const migrateArtists = async () => {
@@ -140,15 +140,25 @@ const migrateArtists = async () => {
   let updated = 0;
 
   for (const artist of artists) {
-    const localPath = getLocalPath(artist.image);
+    let changed = false;
+
+    // ✅ image — dono fields handle kar
+    const imageUrl = artist.image || artist.imageUrl;
+    const localPath = getLocalPath(imageUrl);
+
     if (localPath) {
       const newUrl = await uploadToCloudinary(localPath, "artists");
       if (newUrl) {
-        artist.image = newUrl;
-        await artist.save();
-        updated++;
-        console.log(`✅ Artist: ${artist.name}`);
+        if (artist.image) artist.image = newUrl;
+        if (artist.imageUrl) artist.imageUrl = newUrl;
+        changed = true;
+        console.log(`   ✅ Artist: ${artist.name}`);
       }
+    }
+
+    if (changed) {
+      await artist.save();
+      updated++;
     }
   }
 
@@ -156,7 +166,7 @@ const migrateArtists = async () => {
 };
 
 /* =========================================
-   MIGRATE ALBUMS
+   ✅ MIGRATE ALBUMS
 ========================================= */
 
 const migrateAlbums = async () => {
@@ -168,15 +178,27 @@ const migrateAlbums = async () => {
   let updated = 0;
 
   for (const album of albums) {
-    const localPath = getLocalPath(album.image);
+    let changed = false;
+
+    // ✅ image/coverImage/coverUrl — sab handle kar
+    const imageUrl =
+      album.image || album.coverImage || album.coverUrl;
+    const localPath = getLocalPath(imageUrl);
+
     if (localPath) {
       const newUrl = await uploadToCloudinary(localPath, "albums");
       if (newUrl) {
-        album.image = newUrl;
-        await album.save();
-        updated++;
-        console.log(`✅ Album: ${album.title}`);
+        if (album.image) album.image = newUrl;
+        if (album.coverImage) album.coverImage = newUrl;
+        if (album.coverUrl) album.coverUrl = newUrl;
+        changed = true;
+        console.log(`   ✅ Album: ${album.title || album.name}`);
       }
+    }
+
+    if (changed) {
+      await album.save();
+      updated++;
     }
   }
 
@@ -184,7 +206,7 @@ const migrateAlbums = async () => {
 };
 
 /* =========================================
-   MIGRATE PLAYLISTS
+   ✅ MIGRATE PLAYLISTS
 ========================================= */
 
 const migratePlaylists = async () => {
@@ -196,15 +218,29 @@ const migratePlaylists = async () => {
   let updated = 0;
 
   for (const playlist of playlists) {
-    const localPath = getLocalPath(playlist.coverImage);
+    let changed = false;
+
+    // ✅ coverImage/imageUrl/image — sab handle kar
+    const imageUrl =
+      playlist.coverImage ||
+      playlist.imageUrl ||
+      playlist.image;
+    const localPath = getLocalPath(imageUrl);
+
     if (localPath) {
       const newUrl = await uploadToCloudinary(localPath, "playlists");
       if (newUrl) {
-        playlist.coverImage = newUrl;
-        await playlist.save();
-        updated++;
-        console.log(`✅ Playlist: ${playlist.name}`);
+        if (playlist.coverImage) playlist.coverImage = newUrl;
+        if (playlist.imageUrl) playlist.imageUrl = newUrl;
+        if (playlist.image) playlist.image = newUrl;
+        changed = true;
+        console.log(`   ✅ Playlist: ${playlist.name}`);
       }
+    }
+
+    if (changed) {
+      await playlist.save();
+      updated++;
     }
   }
 
@@ -212,7 +248,7 @@ const migratePlaylists = async () => {
 };
 
 /* =========================================
-   MIGRATE MEDIA
+   ✅ MIGRATE MEDIA
 ========================================= */
 
 const migrateMedia = async () => {
@@ -224,16 +260,26 @@ const migrateMedia = async () => {
   let updated = 0;
 
   for (const item of media) {
-    const localPath = getLocalPath(item.url || item.fileUrl);
+    let changed = false;
+
+    // ✅ url/filePath/fileUrl — sab handle kar
+    const fileUrl = item.url || item.filePath || item.fileUrl;
+    const localPath = getLocalPath(fileUrl);
+
     if (localPath) {
       const newUrl = await uploadToCloudinary(localPath, "media");
       if (newUrl) {
         if (item.url) item.url = newUrl;
+        if (item.filePath) item.filePath = newUrl;
         if (item.fileUrl) item.fileUrl = newUrl;
-        await item.save();
-        updated++;
-        console.log(`✅ Media: ${item.filename || item._id}`);
+        changed = true;
+        console.log(`   ✅ Media: ${item.filename || item._id}`);
       }
+    }
+
+    if (changed) {
+      await item.save();
+      updated++;
     }
   }
 
@@ -241,7 +287,7 @@ const migrateMedia = async () => {
 };
 
 /* =========================================
-   MIGRATE USERS
+   ✅ MIGRATE USERS
 ========================================= */
 
 const migrateUsers = async () => {
@@ -255,6 +301,7 @@ const migrateUsers = async () => {
   for (const user of users) {
     let changed = false;
 
+    // ✅ avatar
     const avatarLocalPath = getLocalPath(user.avatar);
     if (avatarLocalPath) {
       const newUrl = await uploadToCloudinary(avatarLocalPath, "users");
@@ -264,6 +311,7 @@ const migrateUsers = async () => {
       }
     }
 
+    // ✅ profileImage
     const profileLocalPath = getLocalPath(user.profileImage);
     if (profileLocalPath) {
       const newUrl = await uploadToCloudinary(profileLocalPath, "users");
@@ -276,11 +324,59 @@ const migrateUsers = async () => {
     if (changed) {
       await user.save();
       updated++;
-      console.log(`✅ User: ${user.name || user.email}`);
+      console.log(`   ✅ User: ${user.name || user.email}`);
     }
   }
 
   console.log(`\n📊 Users updated: ${updated}/${users.length}`);
+};
+
+/* =========================================
+   ✅ MIGRATE ADS
+========================================= */
+
+const migrateAds = async () => {
+  console.log("\n========================================");
+  console.log("📢 MIGRATING ADS");
+  console.log("========================================");
+
+  const ads = await Ad.find();
+  let updated = 0;
+
+  for (const ad of ads) {
+    let changed = false;
+
+    // ✅ mediaUrl
+    const mediaLocalPath = getLocalPath(ad.mediaUrl);
+    if (mediaLocalPath) {
+      const newUrl = await uploadToCloudinary(mediaLocalPath, "ads");
+      if (newUrl) {
+        ad.mediaUrl = newUrl;
+        changed = true;
+        console.log(`   ✅ Ad media: ${ad.name || ad._id}`);
+      }
+    }
+
+    // ✅ thumbnailUrl
+    const thumbLocalPath = getLocalPath(ad.thumbnailUrl);
+    if (thumbLocalPath) {
+      const newUrl = await uploadToCloudinary(
+        thumbLocalPath,
+        "ads/thumbnails"
+      );
+      if (newUrl) {
+        ad.thumbnailUrl = newUrl;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await ad.save();
+      updated++;
+    }
+  }
+
+  console.log(`\n📊 Ads updated: ${updated}/${ads.length}`);
 };
 
 /* =========================================
@@ -302,6 +398,7 @@ const migrate = async () => {
     await migratePlaylists();
     await migrateMedia();
     await migrateUsers();
+    await migrateAds();
 
     console.log("\n========================================");
     console.log("🎉 MIGRATION COMPLETE!");
@@ -315,3 +412,21 @@ const migrate = async () => {
 };
 
 migrate();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
