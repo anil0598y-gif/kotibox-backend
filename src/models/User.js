@@ -61,7 +61,7 @@ const userSchema = new mongoose.Schema(
     },
 
     /* =========================================
-       ✅ SUBSCRIPTION FIELDS  👈 NAYA
+       ✅ SUBSCRIPTION FIELDS
     ========================================= */
     plan: {
       type: String,
@@ -164,6 +164,20 @@ const userSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
+);
+
+/* =========================================
+   ✅ UNIQUE EMAIL — PARTIAL INDEX
+   Sirf non-empty emails pe unique
+========================================= */
+userSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      email: { $type: "string", $gt: "" },
+    },
+  }
 );
 
 /* =========================================
