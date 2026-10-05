@@ -31,6 +31,18 @@ const planSchema = new mongoose.Schema(
       default: "Monthly",
     },
 
+    /* ✅ NAYA — duration field */
+    duration: {
+      type: Number,
+      default: 30,
+    },
+
+    durationUnit: {
+      type: String,
+      enum: ["Days", "Months", "Years"],
+      default: "Days",
+    },
+
     features: {
       type: Array,
       default: [],

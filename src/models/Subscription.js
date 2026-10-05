@@ -33,6 +33,18 @@ const subscriptionSchema = new mongoose.Schema(
       default: "Monthly",
     },
 
+    /* ✅ NAYA — duration field */
+    duration: {
+      type: Number,
+      default: 30,
+    },
+
+    durationUnit: {
+      type: String,
+      enum: ["days", "months", "years"],
+      default: "days",
+    },
+
     price: {
       type: Number,
       default: 0,

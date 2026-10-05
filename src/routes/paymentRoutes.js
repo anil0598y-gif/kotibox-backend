@@ -27,6 +27,41 @@ router.get("/key", (req, res) => {
 });
 
 /* =========================================
+   ✅ GET MY SUBSCRIPTION  👈 NAYA
+========================================= */
+router.get("/my-subscription", verifyUserToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select(
+      "plan planId subscriptionStatus subscriptionStart subscriptionEnd"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      subscription: {
+        plan: user.plan || "Free",
+        planId: user.planId,
+        status: user.subscriptionStatus || "inactive",
+        startDate: user.subscriptionStart,
+        endDate: user.subscriptionEnd,
+      },
+    });
+  } catch (error) {
+    console.error("GET SUBSCRIPTION ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch subscription",
+    });
+  }
+});
+
+/* =========================================
    ✅ CREATE ORDER
 ========================================= */
 router.post("/create-order", verifyUserToken, async (req, res) => {

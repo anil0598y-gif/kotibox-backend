@@ -1,4 +1,5 @@
 const Plan = require("../models/Plan");
+const mongoose = require("mongoose");
 
 /* =========================================
    GET ALL PLANS
@@ -31,6 +32,13 @@ const getPlans = async (req, res) => {
 const getPlanById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan ID format",
+      });
+    }
 
     const plan = await Plan.findById(id);
 
@@ -68,6 +76,8 @@ const createPlan = async (req, res) => {
       price,
       currency,
       billingCycle,
+      duration,
+      durationUnit,
       features,
       maxQuality,
       adsFree,
@@ -98,25 +108,17 @@ const createPlan = async (req, res) => {
 
     const plan = await Plan.create({
       name: name.trim(),
-
       description: description?.trim() || "",
-
       price: Number(price) || 0,
-
       currency: currency?.trim() || "INR",
-
       billingCycle: billingCycle || "Monthly",
-
+      duration: Number(duration) || 30,
+      durationUnit: durationUnit || "Days",
       features: Array.isArray(parsedFeatures) ? parsedFeatures : [],
-
       maxQuality: maxQuality?.trim() || "320kbps",
-
       adsFree: adsFree === true || adsFree === "true",
-
       downloads: downloads === true || downloads === "true",
-
       maxDevices: Number(maxDevices) || 1,
-
       status: status || "Active",
     });
 
@@ -144,6 +146,13 @@ const updatePlan = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan ID format. MongoDB ObjectId expected.",
+      });
+    }
+
     const plan = await Plan.findById(id);
 
     if (!plan) {
@@ -159,6 +168,8 @@ const updatePlan = async (req, res) => {
       price,
       currency,
       billingCycle,
+      duration,
+      durationUnit,
       features,
       maxQuality,
       adsFree,
@@ -174,7 +185,6 @@ const updatePlan = async (req, res) => {
           message: "Plan name is required",
         });
       }
-
       plan.name = String(name).trim();
     }
 
@@ -192,6 +202,14 @@ const updatePlan = async (req, res) => {
 
     if (billingCycle !== undefined) {
       plan.billingCycle = billingCycle;
+    }
+
+    if (duration !== undefined) {
+      plan.duration = Number(duration) || 30;
+    }
+
+    if (durationUnit !== undefined) {
+      plan.durationUnit = durationUnit;
     }
 
     if (features !== undefined) {
@@ -231,6 +249,10 @@ const updatePlan = async (req, res) => {
 
     await plan.save();
 
+    console.log("✅ PLAN UPDATED:");
+    console.log("   Name:", plan.name);
+    console.log("   Duration:", plan.duration, plan.durationUnit);
+
     res.status(200).json({
       success: true,
       message: "Plan updated successfully",
@@ -254,6 +276,13 @@ const updatePlan = async (req, res) => {
 const deletePlan = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan ID format",
+      });
+    }
 
     const plan = await Plan.findById(id);
 
