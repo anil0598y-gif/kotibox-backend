@@ -70,7 +70,8 @@ const sendOTPPhone = async (phone, otp) => {
 };
 
 /* =========================================
-   VERIFY TOKEN MIDDLEWARE
+   ✅ VERIFY TOKEN MIDDLEWARE
+   — Subscription expiry auto-check added
 ========================================= */
 const verifyUserToken = async (req, res, next) => {
   try {
@@ -100,6 +101,46 @@ const verifyUserToken = async (req, res, next) => {
         success: false,
         message: "User not found",
       });
+    }
+
+    /* =========================================
+       ✅ SUBSCRIPTION EXPIRY AUTO-CHECK
+       Har request pe check karega
+    ========================================= */
+    try {
+      const now = new Date();
+
+      if (
+        user.subscriptionEnd &&
+        user.subscriptionStatus === "active" &&
+        new Date(user.subscriptionEnd) < now
+      ) {
+        console.log(
+          `⏰ Subscription expired for ${user.email} — downgrading to Free`
+        );
+
+        // ✅ Direct update — save() se race condition avoid
+        await User.findByIdAndUpdate(user._id, {
+          $set: {
+            plan: "Free",
+            planId: null,
+            subscriptionStatus: "expired",
+            subscriptionStart: null,
+          },
+        });
+
+        // ✅ req.user mein bhi update karo
+        user.plan = "Free";
+        user.planId = null;
+        user.subscriptionStatus = "expired";
+        user.subscriptionStart = null;
+      }
+    } catch (expiryError) {
+      console.error(
+        "⚠️ Subscription expiry check failed:",
+        expiryError.message
+      );
+      // ✅ Fail hone pe bhi request aage jaye
     }
 
     req.user = user;
@@ -739,12 +780,9 @@ router.put(
       if (username !== undefined) req.user.username = username.trim();
       if (phone !== undefined) req.user.phone = phone.trim();
 
-      // ✅ NEW AVATAR FILE UPLOADED
       if (req.file) {
         const imageUrl = req.file.path;
-
         console.log("📁 Avatar uploaded:", imageUrl);
-
         req.user.avatar = imageUrl;
         req.user.profileImage = imageUrl;
       }
