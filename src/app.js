@@ -29,7 +29,8 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://localhost:3000",
   "https://melodic-queijadas-7955df.netlify.app", // User App URL
-  "https://kotibox-admin-frontend.netlify.app",   // Admin App URL (Yahan add kiya hai)
+  "https://kotibox-admin-frontend.netlify.app",   // Admin App URL (Netlify - purana)
+  "https://kotibox-admin-frontend.vercel.app",    // Admin App URL (Vercel - naya) ✅
 ];
 
 app.use(
