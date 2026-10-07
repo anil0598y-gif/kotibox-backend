@@ -28,7 +28,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://melodic-queijadas-7955df.netlify.app",
+  "https://melodic-queijadas-7955df.netlify.app", // User App URL
+  "https://kotibox-admin-frontend.netlify.app",   // Admin App URL (Yahan add kiya hai)
 ];
 
 app.use(
@@ -133,7 +134,7 @@ app.use("/api/ads", require("./routes/adRoutes"));
 app.use("/api/ad-networks", require("./routes/adNetworkRoutes"));
 
 /* =========================================
-   ✅ RAZORPAY PAYMENT ROUTES  👈 NAYA
+   ✅ RAZORPAY PAYMENT ROUTES
 ========================================= */
 
 app.use("/api/payment", require("./routes/paymentRoutes"));

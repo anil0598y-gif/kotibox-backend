@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const mongoose = require("mongoose");
-const app = require("./src/app");
+const app = require("./src/app"); // Notice: CORS setup is likely inside ./src/app.js, not here!
 
 const PORT = process.env.PORT || 5000;
 
