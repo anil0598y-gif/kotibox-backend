@@ -4,11 +4,24 @@ const path = require("path");
 
 /* --------------------------------------------------------------------------
    DELETE FILE
+   ✅ FIXED: Cloudinary URLs ko skip karta hai
 -------------------------------------------------------------------------- */
 
 const deleteFile = (fileUrl) => {
   try {
     if (!fileUrl) return;
+
+    /* ✅ Cloudinary URL ko skip karo */
+    if (
+      typeof fileUrl === "string" &&
+      /^https?:\/\//i.test(fileUrl)
+    ) {
+      console.log(
+        "☁️ Skipping remote URL (not deleting):",
+        fileUrl
+      );
+      return;
+    }
 
     const cleanPath = String(fileUrl)
       .replace(/^\/+/, "")
@@ -46,6 +59,9 @@ const cleanupUploadedFiles = (files) => {
         if (!file?.path) return;
 
         try {
+          /* Cloudinary URL skip karo */
+          if (/^https?:\/\//i.test(file.path)) return;
+
           if (fs.existsSync(file.path)) {
             fs.unlinkSync(file.path);
             console.log(
@@ -70,11 +86,61 @@ const cleanupUploadedFiles = (files) => {
 
 /* --------------------------------------------------------------------------
    FILE URL
+   ✅ FIXED: Cloudinary public_id se poora URL banata hai
 -------------------------------------------------------------------------- */
 
 const getFileUrl = (file) => {
   if (!file) return "";
-  return `/uploads/songs/${file.filename}`;
+
+  /* ✅ Case 1: file.path already full URL hai */
+  if (file.path && /^https?:\/\//i.test(file.path)) {
+    return file.path;
+  }
+
+  /* ✅ Case 2: secure_url available hai */
+  if (file.secure_url) {
+    return file.secure_url;
+  }
+
+  /* ✅ Case 3: url available hai */
+  if (file.url && /^https?:\/\//i.test(file.url)) {
+    return file.url;
+  }
+
+  /* ✅ Case 4: Cloudinary public_id se URL construct karo */
+  if (file.filename) {
+    /* Cloudinary public_id me "/" hota hai (jaise "kotibox/songs/xxx") */
+    if (file.filename.includes("/")) {
+      const cloudName =
+        process.env.CLOUDINARY_CLOUD_NAME || "fhpolyec";
+
+      /* Resource type decide karo */
+      let resourceType = "image";
+      if (file.mimetype) {
+        if (file.mimetype.startsWith("video/")) {
+          resourceType = "video";
+        } else if (file.mimetype.startsWith("audio/")) {
+          resourceType = "video";
+        } else if (file.mimetype.startsWith("image/")) {
+          resourceType = "image";
+        }
+      }
+
+      const constructedUrl = `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${file.filename}`;
+
+      console.log(
+        "🔧 Constructed Cloudinary URL:",
+        constructedUrl
+      );
+
+      return constructedUrl;
+    }
+
+    /* Purane local storage ka fallback */
+    return `/uploads/songs/${file.filename}`;
+  }
+
+  return "";
 };
 
 /* --------------------------------------------------------------------------
@@ -109,9 +175,7 @@ const getSongs = async (req, res) => {
 
 const getSongById = async (req, res) => {
   try {
-    const song = await Song.findById(
-      req.params.id
-    );
+    const song = await Song.findById(req.params.id);
 
     if (!song) {
       return res.status(404).json({
@@ -125,10 +189,7 @@ const getSongById = async (req, res) => {
       data: song,
     });
   } catch (error) {
-    console.error(
-      "❌ GET SONG ERROR:",
-      error
-    );
+    console.error("❌ GET SONG ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -148,19 +209,13 @@ const addSong = async (req, res) => {
     console.log("=================================");
     console.log("📥 ADD SONG REQUEST");
     console.log("=================================");
-
     console.log("BODY:", req.body);
     console.log("FILES:", req.files);
 
-    /* VALIDATE TITLE */
-
-    const title = String(
-      req.body.title || ""
-    ).trim();
+    const title = String(req.body.title || "").trim();
 
     if (!title) {
       cleanupUploadedFiles(req.files);
-
       return res.status(400).json({
         success: false,
         message: "Song title is required",
@@ -168,54 +223,34 @@ const addSong = async (req, res) => {
     }
 
     /* FILES */
-
     const imageFile = req.files?.image?.[0];
-    const coverImageFile =
-      req.files?.coverImage?.[0];
-    const finalImageFile =
-      imageFile || coverImageFile;
+    const coverImageFile = req.files?.coverImage?.[0];
+    const finalImageFile = imageFile || coverImageFile;
 
     const audioFile = req.files?.audio?.[0];
-    const audioFileAlt =
-      req.files?.audioFile?.[0];
+    const audioFileAlt = req.files?.audioFile?.[0];
 
-    const musicVideoFile =
-      req.files?.musicVideo?.[0];
-    const lyricVideoFile =
-      req.files?.lyricVideo?.[0];
-    const lyricsFile =
-      req.files?.lyricsFile?.[0];
+    const musicVideoFile = req.files?.musicVideo?.[0];
+    const lyricVideoFile = req.files?.lyricVideo?.[0];
+    const lyricsFile = req.files?.lyricsFile?.[0];
 
     /* FILE URLS */
-
     const imageUrl =
-      req.body.imageUrl &&
-      String(req.body.imageUrl).trim()
+      req.body.imageUrl && String(req.body.imageUrl).trim()
         ? String(req.body.imageUrl).trim()
         : getFileUrl(finalImageFile);
 
     const audioUrl =
-      req.body.audioUrl &&
-      String(req.body.audioUrl).trim()
+      req.body.audioUrl && String(req.body.audioUrl).trim()
         ? String(req.body.audioUrl).trim()
-        : getFileUrl(
-            audioFile || audioFileAlt
-          );
+        : getFileUrl(audioFile || audioFileAlt);
 
-    const musicVideoUrl = getFileUrl(
-      musicVideoFile
-    );
-    const lyricVideoUrl = getFileUrl(
-      lyricVideoFile
-    );
-    const lyricsFileUrl = getFileUrl(
-      lyricsFile
-    );
+    const musicVideoUrl = getFileUrl(musicVideoFile);
+    const lyricVideoUrl = getFileUrl(lyricVideoFile);
+    const lyricsFileUrl = getFileUrl(lyricsFile);
 
     /* PLAYS */
-
     let plays = 0;
-
     if (
       req.body.plays !== undefined &&
       req.body.plays !== ""
@@ -224,15 +259,13 @@ const addSong = async (req, res) => {
       if (Number.isNaN(plays)) plays = 0;
     }
 
-    /* CREATE SONG — ✅ Lyrics fields added */
-
+    /* CREATE SONG */
     const song = await Song.create({
       title: req.body.title?.trim() || "",
       artist: req.body.artist?.trim() || "",
       album: req.body.album?.trim() || "",
       genre: req.body.genre?.trim() || "",
-      language:
-        req.body.language?.trim() || "",
+      language: req.body.language?.trim() || "",
       releaseDate: req.body.releaseDate || "",
       duration: req.body.duration || "00:00",
       description: req.body.description || "",
@@ -244,7 +277,6 @@ const addSong = async (req, res) => {
       lyricVideoUrl,
       lyricsFileUrl,
 
-      // ✅ NAYE FIELDS — Lyrics text
       lyrics: req.body.lyrics || "",
       syncedLyrics: req.body.syncedLyrics || "",
 
@@ -252,17 +284,14 @@ const addSong = async (req, res) => {
       catalogId: req.body.catalogId || "",
       composer: req.body.composer || "",
       lyricist: req.body.lyricist || "",
-      musicDirector:
-        req.body.musicDirector || "",
+      musicDirector: req.body.musicDirector || "",
       producer: req.body.producer || "",
       copyright: req.body.copyright || "",
       publisher: req.body.publisher || "",
-      copyrightYear:
-        req.body.copyrightYear || "",
+      copyrightYear: req.body.copyrightYear || "",
 
       status: req.body.status || "Draft",
-      visibility:
-        req.body.visibility || "Public",
+      visibility: req.body.visibility || "Public",
       scheduleDate: req.body.scheduleDate || "",
       scheduleTime: req.body.scheduleTime || "",
     });
@@ -270,8 +299,8 @@ const addSong = async (req, res) => {
     console.log("=================================");
     console.log("✅ SONG SAVED");
     console.log("ID:", song._id);
-    console.log("TITLE:", song.title);
-    console.log("LYRICS:", song.lyrics ? "✅" : "❌");
+    console.log("IMAGE URL:", song.imageUrl);
+    console.log("AUDIO URL:", song.audioUrl);
     console.log("=================================");
 
     res.status(201).json({
@@ -280,11 +309,7 @@ const addSong = async (req, res) => {
       data: song,
     });
   } catch (error) {
-    console.error(
-      "❌ ADD SONG ERROR:",
-      error
-    );
-
+    console.error("❌ ADD SONG ERROR:", error);
     cleanupUploadedFiles(req.files);
 
     res.status(500).json({
@@ -306,13 +331,10 @@ const updateSong = async (req, res) => {
     console.log("✏️ UPDATE SONG REQUEST");
     console.log("=================================");
 
-    const song = await Song.findById(
-      req.params.id
-    );
+    const song = await Song.findById(req.params.id);
 
     if (!song) {
       cleanupUploadedFiles(req.files);
-
       return res.status(404).json({
         success: false,
         message: "Song not found",
@@ -320,7 +342,6 @@ const updateSong = async (req, res) => {
     }
 
     /* VALIDATE TITLE */
-
     const newTitle =
       req.body.title !== undefined
         ? String(req.body.title).trim()
@@ -328,7 +349,6 @@ const updateSong = async (req, res) => {
 
     if (!newTitle) {
       cleanupUploadedFiles(req.files);
-
       return res.status(400).json({
         success: false,
         message: "Song title is required",
@@ -336,12 +356,9 @@ const updateSong = async (req, res) => {
     }
 
     /* IMAGE */
-
     const imageFile = req.files?.image?.[0];
-    const coverImageFile =
-      req.files?.coverImage?.[0];
-    const finalImageFile =
-      imageFile || coverImageFile;
+    const coverImageFile = req.files?.coverImage?.[0];
+    const finalImageFile = imageFile || coverImageFile;
 
     if (finalImageFile) {
       deleteFile(song.imageUrl);
@@ -350,99 +367,64 @@ const updateSong = async (req, res) => {
       req.body.imageUrl !== undefined &&
       String(req.body.imageUrl).trim()
     ) {
-      song.imageUrl = String(
-        req.body.imageUrl
-      ).trim();
+      song.imageUrl = String(req.body.imageUrl).trim();
     }
 
     /* AUDIO */
-
     const audioFile = req.files?.audio?.[0];
-    const audioFileAlt =
-      req.files?.audioFile?.[0];
-    const finalAudioFile =
-      audioFile || audioFileAlt;
+    const audioFileAlt = req.files?.audioFile?.[0];
+    const finalAudioFile = audioFile || audioFileAlt;
 
     if (finalAudioFile) {
       deleteFile(song.audioUrl);
-      song.audioUrl = getFileUrl(
-        finalAudioFile
-      );
+      song.audioUrl = getFileUrl(finalAudioFile);
     } else if (
       req.body.audioUrl !== undefined &&
       String(req.body.audioUrl).trim()
     ) {
-      song.audioUrl = String(
-        req.body.audioUrl
-      ).trim();
+      song.audioUrl = String(req.body.audioUrl).trim();
     }
 
     /* MUSIC VIDEO */
-
-    const musicVideoFile =
-      req.files?.musicVideo?.[0];
-
+    const musicVideoFile = req.files?.musicVideo?.[0];
     if (musicVideoFile) {
       deleteFile(song.musicVideoUrl);
-      song.musicVideoUrl = getFileUrl(
-        musicVideoFile
-      );
+      song.musicVideoUrl = getFileUrl(musicVideoFile);
     }
 
     /* LYRIC VIDEO */
-
-    const lyricVideoFile =
-      req.files?.lyricVideo?.[0];
-
+    const lyricVideoFile = req.files?.lyricVideo?.[0];
     if (lyricVideoFile) {
       deleteFile(song.lyricVideoUrl);
-      song.lyricVideoUrl = getFileUrl(
-        lyricVideoFile
-      );
+      song.lyricVideoUrl = getFileUrl(lyricVideoFile);
     }
 
     /* LYRICS FILE */
-
-    const lyricsFile =
-      req.files?.lyricsFile?.[0];
-
+    const lyricsFile = req.files?.lyricsFile?.[0];
     if (lyricsFile) {
       deleteFile(song.lyricsFileUrl);
-      song.lyricsFileUrl = getFileUrl(
-        lyricsFile
-      );
+      song.lyricsFileUrl = getFileUrl(lyricsFile);
     }
 
     /* TEXT FIELDS */
-
     if (req.body.title !== undefined)
       song.title = req.body.title.trim();
-
     if (req.body.artist !== undefined)
       song.artist = req.body.artist.trim();
-
     if (req.body.album !== undefined)
       song.album = req.body.album.trim();
-
     if (req.body.genre !== undefined)
       song.genre = req.body.genre.trim();
-
     if (req.body.language !== undefined)
       song.language = req.body.language.trim();
-
     if (req.body.releaseDate !== undefined)
       song.releaseDate = req.body.releaseDate;
-
     if (req.body.duration !== undefined)
       song.duration = req.body.duration;
-
     if (req.body.description !== undefined)
       song.description = req.body.description;
-
-    // ✅ NAYE FIELDS — Lyrics text update
     if (req.body.lyrics !== undefined)
       song.lyrics = req.body.lyrics;
-
     if (req.body.syncedLyrics !== undefined)
       song.syncedLyrics = req.body.syncedLyrics;
 
@@ -451,63 +433,43 @@ const updateSong = async (req, res) => {
       req.body.plays !== ""
     ) {
       const plays = Number(req.body.plays);
-      if (!Number.isNaN(plays))
-        song.plays = plays;
+      if (!Number.isNaN(plays)) song.plays = plays;
     }
 
     if (req.body.isrc !== undefined)
       song.isrc = req.body.isrc;
-
     if (req.body.catalogId !== undefined)
       song.catalogId = req.body.catalogId;
-
     if (req.body.composer !== undefined)
       song.composer = req.body.composer;
-
     if (req.body.lyricist !== undefined)
       song.lyricist = req.body.lyricist;
-
     if (req.body.musicDirector !== undefined)
-      song.musicDirector =
-        req.body.musicDirector;
-
+      song.musicDirector = req.body.musicDirector;
     if (req.body.producer !== undefined)
       song.producer = req.body.producer;
-
     if (req.body.copyright !== undefined)
       song.copyright = req.body.copyright;
-
     if (req.body.publisher !== undefined)
       song.publisher = req.body.publisher;
-
-    if (
-      req.body.copyrightYear !== undefined
-    )
-      song.copyrightYear =
-        req.body.copyrightYear;
-
+    if (req.body.copyrightYear !== undefined)
+      song.copyrightYear = req.body.copyrightYear;
     if (req.body.status !== undefined)
       song.status = req.body.status;
-
     if (req.body.visibility !== undefined)
       song.visibility = req.body.visibility;
-
     if (req.body.scheduleDate !== undefined)
       song.scheduleDate = req.body.scheduleDate;
-
     if (req.body.scheduleTime !== undefined)
       song.scheduleTime = req.body.scheduleTime;
 
     /* SAVE */
-
     await song.save();
 
     console.log("=================================");
-    console.log(
-      "✅ SONG UPDATED:",
-      song._id
-    );
-    console.log("LYRICS:", song.lyrics ? "✅" : "❌");
+    console.log("✅ SONG UPDATED:", song._id);
+    console.log("IMAGE URL:", song.imageUrl);
+    console.log("AUDIO URL:", song.audioUrl);
     console.log("=================================");
 
     res.status(200).json({
@@ -516,11 +478,7 @@ const updateSong = async (req, res) => {
       data: song,
     });
   } catch (error) {
-    console.error(
-      "❌ UPDATE SONG ERROR:",
-      error
-    );
-
+    console.error("❌ UPDATE SONG ERROR:", error);
     cleanupUploadedFiles(req.files);
 
     res.status(500).json({
@@ -537,9 +495,7 @@ const updateSong = async (req, res) => {
 
 const deleteSong = async (req, res) => {
   try {
-    const song = await Song.findById(
-      req.params.id
-    );
+    const song = await Song.findById(req.params.id);
 
     if (!song) {
       return res.status(404).json({
@@ -549,7 +505,6 @@ const deleteSong = async (req, res) => {
     }
 
     /* DELETE FILES */
-
     deleteFile(song.imageUrl);
     deleteFile(song.audioUrl);
     deleteFile(song.musicVideoUrl);
@@ -557,25 +512,16 @@ const deleteSong = async (req, res) => {
     deleteFile(song.lyricsFileUrl);
 
     /* DELETE DB RECORD */
+    await Song.findByIdAndDelete(req.params.id);
 
-    await Song.findByIdAndDelete(
-      req.params.id
-    );
-
-    console.log(
-      "🗑️ SONG DELETED:",
-      req.params.id
-    );
+    console.log("🗑️ SONG DELETED:", req.params.id);
 
     res.status(200).json({
       success: true,
       message: "Song deleted successfully",
     });
   } catch (error) {
-    console.error(
-      "❌ DELETE SONG ERROR:",
-      error
-    );
+    console.error("❌ DELETE SONG ERROR:", error);
 
     res.status(500).json({
       success: false,

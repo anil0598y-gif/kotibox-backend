@@ -29,10 +29,6 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
 
   params: async (req, file) => {
-    /* =====================================================
-       FOLDER DECIDE
-    ===================================================== */
-
     let folder = "kotibox";
 
     if (req.baseUrl.includes("/songs")) {
@@ -54,30 +50,34 @@ const storage = new CloudinaryStorage({
     } else if (req.baseUrl.includes("/ads")) {
       if (file.mimetype && file.mimetype.startsWith("image/")) {
         folder = "kotibox/ads/images";
-      } else if (file.mimetype && file.mimetype.startsWith("video/")) {
+      } else if (
+        file.mimetype &&
+        file.mimetype.startsWith("video/")
+      ) {
         folder = "kotibox/ads/videos";
       } else {
         folder = "kotibox/ads";
       }
     }
 
-    /* =====================================================
-       RESOURCE TYPE
-    ===================================================== */
-
     let resourceType = "image";
 
     if (file.mimetype && file.mimetype.startsWith("image/")) {
       resourceType = "image";
-    } else if (file.mimetype && file.mimetype.startsWith("video/")) {
+    } else if (
+      file.mimetype &&
+      file.mimetype.startsWith("video/")
+    ) {
       resourceType = "video";
-    } else if (file.mimetype && file.mimetype.startsWith("audio/")) {
-      resourceType = "video"; // Cloudinary audio = video
+    } else if (
+      file.mimetype &&
+      file.mimetype.startsWith("audio/")
+    ) {
+      resourceType = "video";
     } else {
       resourceType = "raw";
     }
 
-    // ✅ SIMPLE RETURN — allowed_formats hata diya
     return {
       folder: folder,
       resource_type: resourceType,
@@ -159,18 +159,22 @@ const fileFilter = (req, file, cb) => {
   // LYRICS
   if (fieldName === "lyricsFile") {
     const allowedExtensions = [".txt", ".lrc", ".srt", ".vtt"];
-    const extension = path.extname(file.originalname).toLowerCase();
+    const extension = path
+      .extname(file.originalname)
+      .toLowerCase();
     if (allowedExtensions.includes(extension)) {
       return cb(null, true);
     }
-    return cb(new Error("Lyrics file must be TXT, LRC, SRT or VTT"));
+    return cb(
+      new Error("Lyrics file must be TXT, LRC, SRT or VTT")
+    );
   }
 
   return cb(new Error(`Unsupported upload field: ${fieldName}`));
 };
 
 /* =========================================================
-   MULTER
+   MULTER INSTANCE
 ========================================================= */
 
 const upload = multer({
@@ -180,5 +184,9 @@ const upload = multer({
     fileSize: 500 * 1024 * 1024, // 500 MB
   },
 });
+
+/* =========================================================
+   ✅ EXPORT — Ye line bahut zaroori hai!
+========================================================= */
 
 module.exports = upload;
