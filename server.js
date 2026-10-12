@@ -1,7 +1,9 @@
 require("dotenv").config();
 
+const http = require("http");
 const mongoose = require("mongoose");
-const app = require("./src/app"); // Notice: CORS setup is likely inside ./src/app.js, not here!
+const { Server } = require("socket.io");
+const app = require("./src/app");
 
 const PORT = process.env.PORT || 5000;
 
@@ -13,16 +15,35 @@ const startServer = async () => {
     console.log("✅ MongoDB connected");
     console.log("=================================");
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+
+    const io = new Server(server, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      },
+    });
+
+    app.set("io", io);
+
+    io.on("connection", (socket) => {
+      console.log("✅ User connected:", socket.id);
+      socket.on("disconnect", () => {
+        console.log("❌ User disconnected:", socket.id);
+      });
+    });
+
+    server.listen(PORT, () => {
       console.log("=================================");
       console.log("🚀 Admin Backend Server Started");
       console.log(`🌐 Server: http://localhost:${PORT}`);
       console.log(`🔗 API: http://localhost:${PORT}/api`);
+      console.log(`📡 Socket.io: ready`);
       console.log("=================================");
     });
   } catch (error) {
-    console.error("❌ MongoDB error:");
-    console.error(error.message);
+    console.error("❌ MongoDB error:", error.message);
+    process.exit(1);
   }
 };
 

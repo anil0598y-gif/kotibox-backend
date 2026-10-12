@@ -104,10 +104,18 @@ const songSchema = new mongoose.Schema(
 
     /* =========================================
        STATUS / VISIBILITY
+       ✅ FIX: "Active" bhi allow kiya
     ========================================= */
     status: {
       type: String,
-      enum: ["Published", "Draft", "Scheduled", "Archived", "Inactive"],
+      enum: [
+        "Active",       // ✅ NAYA ADD
+        "Published",
+        "Draft",
+        "Scheduled",
+        "Archived",
+        "Inactive",
+      ],
       default: "Draft",
     },
     visibility: {

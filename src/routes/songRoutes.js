@@ -4,11 +4,16 @@ const path = require("path");
 const https = require("https");
 
 const {
+  // 🌐 Public (user app)
+  getPublicSongs,
+  getPublicSongById,
+  // 🔒 Admin
   getSongs,
   getSongById,
   addSong,
   updateSong,
   deleteSong,
+  toggleStatus,
 } = require("../controllers/songController");
 
 const upload = require("../middleware/upload");
@@ -72,8 +77,7 @@ router.get(
         if (thisMonthDownloads >= 10) {
           return res.status(403).json({
             success: false,
-            message:
-              "Monthly download limit khatam. Upgrade karo!",
+            message: "Monthly download limit khatam. Upgrade karo!",
             upgradeRequired: true,
           });
         }
@@ -103,13 +107,7 @@ router.get(
          ✅ LOCAL FILE — /uploads/songs/xxx.mp3
       ========================================= */
       if (audioUrl.startsWith("/")) {
-        const localPath = path.join(
-          __dirname,
-          "..",
-          "public",
-          audioUrl
-        );
-
+        const localPath = path.join(__dirname, "..", "public", audioUrl);
         console.log("📁 Local path:", localPath);
 
         if (fs.existsSync(localPath)) {
@@ -125,17 +123,13 @@ router.get(
 
       /* =========================================
          ✅ REMOTE FILE — Cloudinary / HTTP URL
-         Proxy karo taaki browser download kare
       ========================================= */
       if (audioUrl.startsWith("http")) {
         console.log("🌐 Proxying from:", audioUrl);
 
         return https
           .get(audioUrl, (fileRes) => {
-            console.log(
-              "✅ Cloudinary response status:",
-              fileRes.statusCode
-            );
+            console.log("✅ Cloudinary status:", fileRes.statusCode);
 
             if (fileRes.statusCode !== 200) {
               return res.status(404).json({
@@ -144,19 +138,12 @@ router.get(
               });
             }
 
-            // ✅ Cloudinary headers forward karo
             if (fileRes.headers["content-type"]) {
-              res.setHeader(
-                "Content-Type",
-                fileRes.headers["content-type"]
-              );
+              res.setHeader("Content-Type", fileRes.headers["content-type"]);
             }
 
             if (fileRes.headers["content-length"]) {
-              res.setHeader(
-                "Content-Length",
-                fileRes.headers["content-length"]
-              );
+              res.setHeader("Content-Length", fileRes.headers["content-length"]);
             }
 
             fileRes.pipe(res);
@@ -185,33 +172,28 @@ router.get(
 );
 
 /* ==========================================================================
-   GET ALL SONGS
+   🔒 ADMIN ROUTES — /admin/* (generic /:id se PEHLE rakho)
+   ⚠️ Inpe auth+adminOnly middleware lagana chahiye
+      Filhal middleware nahi laga raha taki existing setup na toote.
+      Production me zaroor lagana:
+      const auth = require("../middleware/auth");
+      const adminOnly = require("../middleware/adminOnly");
+      router.get("/admin/all", auth, adminOnly, getSongs);
 ========================================================================== */
 
-router.get("/", getSongs);
+router.get("/admin/all", getSongs);                       // all songs (draft bhi)
+router.get("/admin/:id", getSongById);                    // admin single
+router.post("/admin", songUpload, addSong);               // create
+router.put("/admin/:id", songUpload, updateSong);         // update
+router.patch("/admin/:id/toggle", toggleStatus);          // publish/unpublish
+router.delete("/admin/:id", deleteSong);                  // delete
 
 /* ==========================================================================
-   GET SINGLE SONG
+   🌐 PUBLIC ROUTES — User App
+   Sirf Published + Public songs return karte hain
 ========================================================================== */
 
-router.get("/:id", getSongById);
-
-/* ==========================================================================
-   ADD SONG
-========================================================================== */
-
-router.post("/", songUpload, addSong);
-
-/* ==========================================================================
-   UPDATE SONG
-========================================================================== */
-
-router.put("/:id", songUpload, updateSong);
-
-/* ==========================================================================
-   DELETE SONG
-========================================================================== */
-
-router.delete("/:id", deleteSong);
+router.get("/", getPublicSongs);         // ✅ user app list
+router.get("/:id", getPublicSongById);   // ✅ user app single
 
 module.exports = router;

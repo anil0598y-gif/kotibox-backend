@@ -3,8 +3,18 @@ const fs = require("fs");
 const path = require("path");
 
 /* --------------------------------------------------------------------------
+   HELPER: PUBLIC SONG FILTER
+   User app ko sirf Published + Public songs dikhne chahiye
+-------------------------------------------------------------------------- */
+
+const PUBLIC_FILTER = {
+  status: "Published",
+  visibility: "Public",
+};
+
+/* --------------------------------------------------------------------------
    DELETE FILE
-   ✅ FIXED: Cloudinary URLs ko skip karta hai
+   ✅ Cloudinary URLs ko skip karta hai
 -------------------------------------------------------------------------- */
 
 const deleteFile = (fileUrl) => {
@@ -12,14 +22,8 @@ const deleteFile = (fileUrl) => {
     if (!fileUrl) return;
 
     /* ✅ Cloudinary URL ko skip karo */
-    if (
-      typeof fileUrl === "string" &&
-      /^https?:\/\//i.test(fileUrl)
-    ) {
-      console.log(
-        "☁️ Skipping remote URL (not deleting):",
-        fileUrl
-      );
+    if (typeof fileUrl === "string" && /^https?:\/\//i.test(fileUrl)) {
+      console.log("☁️ Skipping remote URL (not deleting):", fileUrl);
       return;
     }
 
@@ -27,21 +31,14 @@ const deleteFile = (fileUrl) => {
       .replace(/^\/+/, "")
       .replace(/^\\+/, "");
 
-    const filePath = path.join(
-      __dirname,
-      "../../public",
-      cleanPath
-    );
+    const filePath = path.join(__dirname, "../../public", cleanPath);
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       console.log("🗑️ File deleted:", filePath);
     }
   } catch (error) {
-    console.error(
-      "❌ File delete error:",
-      error.message
-    );
+    console.error("❌ File delete error:", error.message);
   }
 };
 
@@ -59,67 +56,52 @@ const cleanupUploadedFiles = (files) => {
         if (!file?.path) return;
 
         try {
-          /* Cloudinary URL skip karo */
           if (/^https?:\/\//i.test(file.path)) return;
 
           if (fs.existsSync(file.path)) {
             fs.unlinkSync(file.path);
-            console.log(
-              "🗑️ Uploaded file cleaned:",
-              file.path
-            );
+            console.log("🗑️ Uploaded file cleaned:", file.path);
           }
         } catch (cleanupError) {
-          console.error(
-            "❌ Cleanup error:",
-            cleanupError.message
-          );
+          console.error("❌ Cleanup error:", cleanupError.message);
         }
       });
   } catch (error) {
-    console.error(
-      "❌ Uploaded files cleanup error:",
-      error.message
-    );
+    console.error("❌ Uploaded files cleanup error:", error.message);
   }
 };
 
 /* --------------------------------------------------------------------------
    FILE URL
-   ✅ FIXED: Cloudinary public_id se poora URL banata hai
+   ✅ Cloudinary public_id se poora URL banata hai
 -------------------------------------------------------------------------- */
 
 const getFileUrl = (file) => {
   if (!file) return "";
 
-  /* ✅ Case 1: file.path already full URL hai */
   if (file.path && /^https?:\/\//i.test(file.path)) {
     return file.path;
   }
 
-  /* ✅ Case 2: secure_url available hai */
   if (file.secure_url) {
     return file.secure_url;
   }
 
-  /* ✅ Case 3: url available hai */
   if (file.url && /^https?:\/\//i.test(file.url)) {
     return file.url;
   }
 
-  /* ✅ Case 4: Cloudinary public_id se URL construct karo */
   if (file.filename) {
-    /* Cloudinary public_id me "/" hota hai (jaise "kotibox/songs/xxx") */
     if (file.filename.includes("/")) {
       const cloudName =
         process.env.CLOUDINARY_CLOUD_NAME || "fhpolyec";
 
-      /* Resource type decide karo */
       let resourceType = "image";
       if (file.mimetype) {
-        if (file.mimetype.startsWith("video/")) {
-          resourceType = "video";
-        } else if (file.mimetype.startsWith("audio/")) {
+        if (
+          file.mimetype.startsWith("video/") ||
+          file.mimetype.startsWith("audio/")
+        ) {
           resourceType = "video";
         } else if (file.mimetype.startsWith("image/")) {
           resourceType = "image";
@@ -128,30 +110,39 @@ const getFileUrl = (file) => {
 
       const constructedUrl = `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${file.filename}`;
 
-      console.log(
-        "🔧 Constructed Cloudinary URL:",
-        constructedUrl
-      );
+      console.log("🔧 Constructed Cloudinary URL:", constructedUrl);
 
       return constructedUrl;
     }
 
-    /* Purane local storage ka fallback */
     return `/uploads/songs/${file.filename}`;
   }
 
   return "";
 };
 
+/* ==========================================================================
+   🌐 PUBLIC APIs — User App
+========================================================================== */
+
 /* --------------------------------------------------------------------------
-   GET ALL SONGS
+   GET PUBLIC SONGS
+   GET /api/songs
+   Sirf Published + Public songs (user app ke liye)
 -------------------------------------------------------------------------- */
 
-const getSongs = async (req, res) => {
+const getPublicSongs = async (req, res) => {
   try {
-    const songs = await Song.find().sort({
-      createdAt: -1,
-    });
+    const { search, genre, language, trending } = req.query;
+
+    const filter = { ...PUBLIC_FILTER };
+
+    if (genre) filter.genre = genre;
+    if (language) filter.language = language;
+    if (trending === "true") filter.isTrending = true;
+    if (search) filter.$text = { $search: search };
+
+    const songs = await Song.find(filter).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -159,8 +150,7 @@ const getSongs = async (req, res) => {
       data: songs,
     });
   } catch (error) {
-    console.error("❌ GET SONGS ERROR:", error);
-
+    console.error("❌ GET PUBLIC SONGS ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch songs",
@@ -170,7 +160,70 @@ const getSongs = async (req, res) => {
 };
 
 /* --------------------------------------------------------------------------
-   GET SONG BY ID
+   GET PUBLIC SONG BY ID
+   GET /api/songs/:id
+-------------------------------------------------------------------------- */
+
+const getPublicSongById = async (req, res) => {
+  try {
+    const song = await Song.findOne({
+      _id: req.params.id,
+      ...PUBLIC_FILTER,
+    });
+
+    if (!song) {
+      return res.status(404).json({
+        success: false,
+        message: "Song not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: song,
+    });
+  } catch (error) {
+    console.error("❌ GET PUBLIC SONG ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch song",
+      error: error.message,
+    });
+  }
+};
+
+/* ==========================================================================
+   🔒 ADMIN APIs
+========================================================================== */
+
+/* --------------------------------------------------------------------------
+   GET ALL SONGS (ADMIN)
+   GET /api/admin/songs
+   Saare songs — Draft, Published, sab
+-------------------------------------------------------------------------- */
+
+const getSongs = async (req, res) => {
+  try {
+    const songs = await Song.find().sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: songs.length,
+      data: songs,
+    });
+  } catch (error) {
+    console.error("❌ GET SONGS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch songs",
+      error: error.message,
+    });
+  }
+};
+
+/* --------------------------------------------------------------------------
+   GET SONG BY ID (ADMIN)
+   GET /api/admin/songs/:id
 -------------------------------------------------------------------------- */
 
 const getSongById = async (req, res) => {
@@ -190,7 +243,6 @@ const getSongById = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ GET SONG ERROR:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to fetch song",
@@ -201,6 +253,7 @@ const getSongById = async (req, res) => {
 
 /* --------------------------------------------------------------------------
    ADD SONG
+   POST /api/admin/songs
 -------------------------------------------------------------------------- */
 
 const addSong = async (req, res) => {
@@ -251,17 +304,14 @@ const addSong = async (req, res) => {
 
     /* PLAYS */
     let plays = 0;
-    if (
-      req.body.plays !== undefined &&
-      req.body.plays !== ""
-    ) {
+    if (req.body.plays !== undefined && req.body.plays !== "") {
       plays = Number(req.body.plays);
       if (Number.isNaN(plays)) plays = 0;
     }
 
     /* CREATE SONG */
     const song = await Song.create({
-      title: req.body.title?.trim() || "",
+      title,
       artist: req.body.artist?.trim() || "",
       album: req.body.album?.trim() || "",
       genre: req.body.genre?.trim() || "",
@@ -299,9 +349,17 @@ const addSong = async (req, res) => {
     console.log("=================================");
     console.log("✅ SONG SAVED");
     console.log("ID:", song._id);
+    console.log("STATUS:", song.status);
     console.log("IMAGE URL:", song.imageUrl);
     console.log("AUDIO URL:", song.audioUrl);
     console.log("=================================");
+
+    /* 🔥 SOCKET.IO — real-time notify user app */
+    const io = req.app.get("io");
+    if (io && song.status === "Published" && song.visibility === "Public") {
+      io.emit("song:added", song);
+      console.log("📡 Socket emitted: song:added");
+    }
 
     res.status(201).json({
       success: true,
@@ -322,6 +380,7 @@ const addSong = async (req, res) => {
 
 /* --------------------------------------------------------------------------
    UPDATE SONG
+   PUT /api/admin/songs/:id
 -------------------------------------------------------------------------- */
 
 const updateSong = async (req, res) => {
@@ -330,6 +389,8 @@ const updateSong = async (req, res) => {
     console.log("=================================");
     console.log("✏️ UPDATE SONG REQUEST");
     console.log("=================================");
+    console.log("BODY:", req.body);
+    console.log("FILES:", req.files);
 
     const song = await Song.findById(req.params.id);
 
@@ -406,71 +467,60 @@ const updateSong = async (req, res) => {
       song.lyricsFileUrl = getFileUrl(lyricsFile);
     }
 
-    /* TEXT FIELDS */
-    if (req.body.title !== undefined)
-      song.title = req.body.title.trim();
-    if (req.body.artist !== undefined)
-      song.artist = req.body.artist.trim();
-    if (req.body.album !== undefined)
-      song.album = req.body.album.trim();
-    if (req.body.genre !== undefined)
-      song.genre = req.body.genre.trim();
-    if (req.body.language !== undefined)
-      song.language = req.body.language.trim();
-    if (req.body.releaseDate !== undefined)
-      song.releaseDate = req.body.releaseDate;
-    if (req.body.duration !== undefined)
-      song.duration = req.body.duration;
-    if (req.body.description !== undefined)
-      song.description = req.body.description;
-    if (req.body.lyrics !== undefined)
-      song.lyrics = req.body.lyrics;
-    if (req.body.syncedLyrics !== undefined)
-      song.syncedLyrics = req.body.syncedLyrics;
+    /* ✅ TEXT FIELDS — clean & explicit assignment */
 
-    if (
-      req.body.plays !== undefined &&
-      req.body.plays !== ""
-    ) {
+    if (req.body.title !== undefined) song.title = newTitle;
+    if (req.body.artist !== undefined) song.artist = String(req.body.artist).trim();
+    if (req.body.album !== undefined) song.album = String(req.body.album).trim();
+    if (req.body.genre !== undefined) song.genre = String(req.body.genre).trim();
+    if (req.body.language !== undefined) song.language = String(req.body.language).trim();
+    if (req.body.releaseDate !== undefined) song.releaseDate = req.body.releaseDate;
+    if (req.body.duration !== undefined) song.duration = req.body.duration;
+    if (req.body.description !== undefined) song.description = req.body.description;
+    if (req.body.lyrics !== undefined) song.lyrics = req.body.lyrics;
+    if (req.body.syncedLyrics !== undefined) song.syncedLyrics = req.body.syncedLyrics;
+
+    if (req.body.plays !== undefined && req.body.plays !== "") {
       const plays = Number(req.body.plays);
       if (!Number.isNaN(plays)) song.plays = plays;
     }
 
-    if (req.body.isrc !== undefined)
-      song.isrc = req.body.isrc;
-    if (req.body.catalogId !== undefined)
-      song.catalogId = req.body.catalogId;
-    if (req.body.composer !== undefined)
-      song.composer = req.body.composer;
-    if (req.body.lyricist !== undefined)
-      song.lyricist = req.body.lyricist;
-    if (req.body.musicDirector !== undefined)
-      song.musicDirector = req.body.musicDirector;
-    if (req.body.producer !== undefined)
-      song.producer = req.body.producer;
-    if (req.body.copyright !== undefined)
-      song.copyright = req.body.copyright;
-    if (req.body.publisher !== undefined)
-      song.publisher = req.body.publisher;
-    if (req.body.copyrightYear !== undefined)
-      song.copyrightYear = req.body.copyrightYear;
-    if (req.body.status !== undefined)
-      song.status = req.body.status;
-    if (req.body.visibility !== undefined)
-      song.visibility = req.body.visibility;
-    if (req.body.scheduleDate !== undefined)
-      song.scheduleDate = req.body.scheduleDate;
-    if (req.body.scheduleTime !== undefined)
-      song.scheduleTime = req.body.scheduleTime;
+    if (req.body.isrc !== undefined) song.isrc = req.body.isrc;
+    if (req.body.catalogId !== undefined) song.catalogId = req.body.catalogId;
+    if (req.body.composer !== undefined) song.composer = req.body.composer;
+    if (req.body.lyricist !== undefined) song.lyricist = req.body.lyricist;
+    if (req.body.musicDirector !== undefined) song.musicDirector = req.body.musicDirector;
+    if (req.body.producer !== undefined) song.producer = req.body.producer;
+    if (req.body.copyright !== undefined) song.copyright = req.body.copyright;
+    if (req.body.publisher !== undefined) song.publisher = req.body.publisher;
+    if (req.body.copyrightYear !== undefined) song.copyrightYear = req.body.copyrightYear;
+    if (req.body.status !== undefined) song.status = req.body.status;
+    if (req.body.visibility !== undefined) song.visibility = req.body.visibility;
+    if (req.body.scheduleDate !== undefined) song.scheduleDate = req.body.scheduleDate;
+    if (req.body.scheduleTime !== undefined) song.scheduleTime = req.body.scheduleTime;
 
     /* SAVE */
     await song.save();
 
     console.log("=================================");
     console.log("✅ SONG UPDATED:", song._id);
+    console.log("STATUS:", song.status, "| VISIBILITY:", song.visibility);
     console.log("IMAGE URL:", song.imageUrl);
     console.log("AUDIO URL:", song.audioUrl);
     console.log("=================================");
+
+    /* 🔥 SOCKET.IO — real-time notify */
+    const io = req.app.get("io");
+    if (io) {
+      if (song.status === "Published" && song.visibility === "Public") {
+        io.emit("song:updated", song);
+        console.log("📡 Socket emitted: song:updated");
+      } else {
+        // Agar song Draft ya Private ho gaya to user app se hata do
+        io.emit("song:deleted", { _id: song._id });
+        console.log("📡 Socket emitted: song:deleted (moved to draft/private)");
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -491,6 +541,7 @@ const updateSong = async (req, res) => {
 
 /* --------------------------------------------------------------------------
    DELETE SONG
+   DELETE /api/admin/songs/:id
 -------------------------------------------------------------------------- */
 
 const deleteSong = async (req, res) => {
@@ -516,6 +567,13 @@ const deleteSong = async (req, res) => {
 
     console.log("🗑️ SONG DELETED:", req.params.id);
 
+    /* 🔥 SOCKET.IO — real-time remove */
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("song:deleted", { _id: req.params.id });
+      console.log("📡 Socket emitted: song:deleted");
+    }
+
     res.status(200).json({
       success: true,
       message: "Song deleted successfully",
@@ -531,10 +589,67 @@ const deleteSong = async (req, res) => {
   }
 };
 
+/* --------------------------------------------------------------------------
+   TOGGLE STATUS (Draft <-> Published)
+   PATCH /api/admin/songs/:id/toggle
+   Quick publish/unpublish ke liye
+-------------------------------------------------------------------------- */
+
+const toggleStatus = async (req, res) => {
+  try {
+    const song = await Song.findById(req.params.id);
+
+    if (!song) {
+      return res.status(404).json({
+        success: false,
+        message: "Song not found",
+      });
+    }
+
+    song.status = song.status === "Published" ? "Draft" : "Published";
+    await song.save();
+
+    console.log("🔄 STATUS TOGGLED:", song._id, "→", song.status);
+
+    /* 🔥 SOCKET.IO */
+    const io = req.app.get("io");
+    if (io) {
+      if (song.status === "Published" && song.visibility === "Public") {
+        io.emit("song:added", song); // user app me add ho gaya
+        console.log("📡 Socket emitted: song:added (published)");
+      } else {
+        io.emit("song:deleted", { _id: song._id }); // user app se hata do
+        console.log("📡 Socket emitted: song:deleted (unpublished)");
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        song.status === "Published"
+          ? "Song published successfully"
+          : "Song moved to draft",
+      data: song,
+    });
+  } catch (error) {
+    console.error("❌ TOGGLE STATUS ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle status",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
+  // Public
+  getPublicSongs,
+  getPublicSongById,
+  // Admin
   getSongs,
   getSongById,
   addSong,
   updateSong,
   deleteSong,
+  toggleStatus,
 };
