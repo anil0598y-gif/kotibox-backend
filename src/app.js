@@ -22,15 +22,17 @@ console.log("=========================================");
 
 /* =========================================
    CORS
+   ✅ FIX: Vercel user app URL add kiya
 ========================================= */
 
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://melodic-queijadas-7955df.netlify.app", // User App URL
-  "https://kotibox-admin-frontend.netlify.app",   // Admin App URL (Netlify - purana)
-  "https://kotibox-admin-frontend.vercel.app",    // Admin App URL (Vercel - naya) ✅
+  "https://melodic-queijadas-7955df.netlify.app", // User App (Netlify - purana)
+  "https://kotibox.vercel.app",                   // ✅ User App (Vercel - NAYA)
+  "https://kotibox-admin-frontend.netlify.app",   // Admin App (Netlify - purana)
+  "https://kotibox-admin-frontend.vercel.app",    // Admin App (Vercel - naya)
 ];
 
 app.use(
@@ -42,6 +44,8 @@ app.use(
       return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   })
 );
 
