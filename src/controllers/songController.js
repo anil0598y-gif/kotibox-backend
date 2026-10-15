@@ -1,10 +1,10 @@
 const Song = require("../models/Song");
+const Artist = require("../models/Artist");   // ✅ NAYA IMPORT
 const fs = require("fs");
 const path = require("path");
 
 /* --------------------------------------------------------------------------
    HELPER: PUBLIC SONG FILTER
-   User app ko sirf Published + Public songs dikhne chahiye
 -------------------------------------------------------------------------- */
 
 const PUBLIC_FILTER = {
@@ -14,14 +14,12 @@ const PUBLIC_FILTER = {
 
 /* --------------------------------------------------------------------------
    DELETE FILE
-   ✅ Cloudinary URLs ko skip karta hai
 -------------------------------------------------------------------------- */
 
 const deleteFile = (fileUrl) => {
   try {
     if (!fileUrl) return;
 
-    /* ✅ Cloudinary URL ko skip karo */
     if (typeof fileUrl === "string" && /^https?:\/\//i.test(fileUrl)) {
       console.log("☁️ Skipping remote URL (not deleting):", fileUrl);
       return;
@@ -73,7 +71,6 @@ const cleanupUploadedFiles = (files) => {
 
 /* --------------------------------------------------------------------------
    FILE URL
-   ✅ Cloudinary public_id se poora URL banata hai
 -------------------------------------------------------------------------- */
 
 const getFileUrl = (file) => {
@@ -122,14 +119,111 @@ const getFileUrl = (file) => {
 };
 
 /* ==========================================================================
-   🌐 PUBLIC APIs — User App
+   ✅ AUTO-SYNC ARTISTS FROM SONG
+   Song add/update/delete hone pe Artist collection automatically update hota hai
 ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   GET PUBLIC SONGS
-   GET /api/songs
-   Sirf Published + Public songs (user app ke liye)
--------------------------------------------------------------------------- */
+const parseArtistNames = (artistString) => {
+  if (!artistString) return [];
+  return String(artistString)
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+};
+
+/**
+ * Song add/update ke baad call karo.
+ * - Naye artists create karega
+ * - Existing artists me song._id add karega
+ * - Purane artists se song._id hata dega (agar artist change hua)
+ */
+const syncArtistsFromSong = async (song, oldArtistString = null) => {
+  if (!song) return;
+
+  try {
+    const newNames = parseArtistNames(song.artist);
+    const oldNames = parseArtistNames(oldArtistString);
+
+    /* 1. Purane artists se song remove karo (agar artist change hua) */
+    if (oldArtistString) {
+      const removedNames = oldNames.filter((n) => !newNames.includes(n));
+
+      for (const name of removedNames) {
+        await Artist.updateOne(
+          { name: { $regex: `^${name}$`, $options: "i" } },
+          { $pull: { songs: song._id } }
+        );
+        console.log(`🔄 Removed song from artist: ${name}`);
+      }
+    }
+
+    /* 2. Naye artists me song add karo, ya create karo */
+    for (const name of newNames) {
+      let artist = await Artist.findOne({
+        name: { $regex: `^${name}$`, $options: "i" },
+      });
+
+      if (!artist) {
+        /* Naya artist create karo */
+        artist = await Artist.create({
+          name,
+          image: song.imageUrl || "",
+          songs: [song._id],
+          type: "Singer",
+          status: "Active",
+        });
+        console.log(`✅ Auto-created artist: ${name}`);
+      } else {
+        /* Existing artist me song add karo (duplicate check) */
+        const songIdStr = String(song._id);
+        const alreadyHas = (artist.songs || []).some(
+          (id) => String(id) === songIdStr
+        );
+
+        if (!alreadyHas) {
+          artist.songs = [...(artist.songs || []), song._id];
+          await artist.save();
+          console.log(`✅ Added song to artist: ${name}`);
+        }
+
+        /* Agar artist ki image blank hai to song ki image use karo */
+        if (!artist.image && song.imageUrl) {
+          artist.image = song.imageUrl;
+          await artist.save();
+        }
+      }
+    }
+  } catch (error) {
+    console.error("❌ syncArtistsFromSong error:", error.message);
+  }
+};
+
+/**
+ * Song delete hone pe call karo.
+ * Har associated artist se song._id hata dega.
+ */
+const unsyncArtistFromSong = async (song) => {
+  if (!song) return;
+
+  try {
+    const names = parseArtistNames(song.artist);
+
+    for (const name of names) {
+      await Artist.updateOne(
+        { name: { $regex: `^${name}$`, $options: "i" } },
+        { $pull: { songs: song._id } }
+      );
+    }
+
+    console.log(`🔄 Song removed from ${names.length} artist(s)`);
+  } catch (error) {
+    console.error("❌ unsyncArtistFromSong error:", error.message);
+  }
+};
+
+/* ==========================================================================
+   🌐 PUBLIC APIs — User App
+========================================================================== */
 
 const getPublicSongs = async (req, res) => {
   try {
@@ -158,11 +252,6 @@ const getPublicSongs = async (req, res) => {
     });
   }
 };
-
-/* --------------------------------------------------------------------------
-   GET PUBLIC SONG BY ID
-   GET /api/songs/:id
--------------------------------------------------------------------------- */
 
 const getPublicSongById = async (req, res) => {
   try {
@@ -196,12 +285,6 @@ const getPublicSongById = async (req, res) => {
    🔒 ADMIN APIs
 ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   GET ALL SONGS (ADMIN)
-   GET /api/admin/songs
-   Saare songs — Draft, Published, sab
--------------------------------------------------------------------------- */
-
 const getSongs = async (req, res) => {
   try {
     const songs = await Song.find().sort({ createdAt: -1 });
@@ -220,11 +303,6 @@ const getSongs = async (req, res) => {
     });
   }
 };
-
-/* --------------------------------------------------------------------------
-   GET SONG BY ID (ADMIN)
-   GET /api/admin/songs/:id
--------------------------------------------------------------------------- */
 
 const getSongById = async (req, res) => {
   try {
@@ -253,7 +331,6 @@ const getSongById = async (req, res) => {
 
 /* --------------------------------------------------------------------------
    ADD SONG
-   POST /api/admin/songs
 -------------------------------------------------------------------------- */
 
 const addSong = async (req, res) => {
@@ -275,7 +352,6 @@ const addSong = async (req, res) => {
       });
     }
 
-    /* FILES */
     const imageFile = req.files?.image?.[0];
     const coverImageFile = req.files?.coverImage?.[0];
     const finalImageFile = imageFile || coverImageFile;
@@ -287,7 +363,6 @@ const addSong = async (req, res) => {
     const lyricVideoFile = req.files?.lyricVideo?.[0];
     const lyricsFile = req.files?.lyricsFile?.[0];
 
-    /* FILE URLS */
     const imageUrl =
       req.body.imageUrl && String(req.body.imageUrl).trim()
         ? String(req.body.imageUrl).trim()
@@ -302,14 +377,12 @@ const addSong = async (req, res) => {
     const lyricVideoUrl = getFileUrl(lyricVideoFile);
     const lyricsFileUrl = getFileUrl(lyricsFile);
 
-    /* PLAYS */
     let plays = 0;
     if (req.body.plays !== undefined && req.body.plays !== "") {
       plays = Number(req.body.plays);
       if (Number.isNaN(plays)) plays = 0;
     }
 
-    /* CREATE SONG */
     const song = await Song.create({
       title,
       artist: req.body.artist?.trim() || "",
@@ -350,11 +423,12 @@ const addSong = async (req, res) => {
     console.log("✅ SONG SAVED");
     console.log("ID:", song._id);
     console.log("STATUS:", song.status);
-    console.log("IMAGE URL:", song.imageUrl);
-    console.log("AUDIO URL:", song.audioUrl);
     console.log("=================================");
 
-    /* 🔥 SOCKET.IO — real-time notify user app */
+    /* ✅ AUTO-SYNC ARTISTS */
+    await syncArtistsFromSong(song);
+
+    /* 🔥 SOCKET.IO */
     const io = req.app.get("io");
     if (io && song.status === "Published" && song.visibility === "Public") {
       io.emit("song:added", song);
@@ -380,7 +454,6 @@ const addSong = async (req, res) => {
 
 /* --------------------------------------------------------------------------
    UPDATE SONG
-   PUT /api/admin/songs/:id
 -------------------------------------------------------------------------- */
 
 const updateSong = async (req, res) => {
@@ -389,8 +462,6 @@ const updateSong = async (req, res) => {
     console.log("=================================");
     console.log("✏️ UPDATE SONG REQUEST");
     console.log("=================================");
-    console.log("BODY:", req.body);
-    console.log("FILES:", req.files);
 
     const song = await Song.findById(req.params.id);
 
@@ -402,7 +473,9 @@ const updateSong = async (req, res) => {
       });
     }
 
-    /* VALIDATE TITLE */
+    /* ✅ Save old artist string for sync */
+    const oldArtistString = song.artist;
+
     const newTitle =
       req.body.title !== undefined
         ? String(req.body.title).trim()
@@ -467,8 +540,7 @@ const updateSong = async (req, res) => {
       song.lyricsFileUrl = getFileUrl(lyricsFile);
     }
 
-    /* ✅ TEXT FIELDS — clean & explicit assignment */
-
+    /* TEXT FIELDS */
     if (req.body.title !== undefined) song.title = newTitle;
     if (req.body.artist !== undefined) song.artist = String(req.body.artist).trim();
     if (req.body.album !== undefined) song.album = String(req.body.album).trim();
@@ -499,26 +571,22 @@ const updateSong = async (req, res) => {
     if (req.body.scheduleDate !== undefined) song.scheduleDate = req.body.scheduleDate;
     if (req.body.scheduleTime !== undefined) song.scheduleTime = req.body.scheduleTime;
 
-    /* SAVE */
     await song.save();
 
-    console.log("=================================");
     console.log("✅ SONG UPDATED:", song._id);
-    console.log("STATUS:", song.status, "| VISIBILITY:", song.visibility);
-    console.log("IMAGE URL:", song.imageUrl);
-    console.log("AUDIO URL:", song.audioUrl);
-    console.log("=================================");
 
-    /* 🔥 SOCKET.IO — real-time notify */
+    /* ✅ AUTO-SYNC ARTISTS (old vs new artist name) */
+    await syncArtistsFromSong(song, oldArtistString);
+
+    /* 🔥 SOCKET.IO */
     const io = req.app.get("io");
     if (io) {
       if (song.status === "Published" && song.visibility === "Public") {
         io.emit("song:updated", song);
         console.log("📡 Socket emitted: song:updated");
       } else {
-        // Agar song Draft ya Private ho gaya to user app se hata do
         io.emit("song:deleted", { _id: song._id });
-        console.log("📡 Socket emitted: song:deleted (moved to draft/private)");
+        console.log("📡 Socket emitted: song:deleted (moved to draft)");
       }
     }
 
@@ -541,7 +609,6 @@ const updateSong = async (req, res) => {
 
 /* --------------------------------------------------------------------------
    DELETE SONG
-   DELETE /api/admin/songs/:id
 -------------------------------------------------------------------------- */
 
 const deleteSong = async (req, res) => {
@@ -562,16 +629,17 @@ const deleteSong = async (req, res) => {
     deleteFile(song.lyricVideoUrl);
     deleteFile(song.lyricsFileUrl);
 
+    /* ✅ AUTO-UNSYNC ARTISTS (song remove karo har artist se) */
+    await unsyncArtistFromSong(song);
+
     /* DELETE DB RECORD */
     await Song.findByIdAndDelete(req.params.id);
 
     console.log("🗑️ SONG DELETED:", req.params.id);
 
-    /* 🔥 SOCKET.IO — real-time remove */
     const io = req.app.get("io");
     if (io) {
       io.emit("song:deleted", { _id: req.params.id });
-      console.log("📡 Socket emitted: song:deleted");
     }
 
     res.status(200).json({
@@ -590,9 +658,7 @@ const deleteSong = async (req, res) => {
 };
 
 /* --------------------------------------------------------------------------
-   TOGGLE STATUS (Draft <-> Published)
-   PATCH /api/admin/songs/:id/toggle
-   Quick publish/unpublish ke liye
+   TOGGLE STATUS
 -------------------------------------------------------------------------- */
 
 const toggleStatus = async (req, res) => {
@@ -611,15 +677,12 @@ const toggleStatus = async (req, res) => {
 
     console.log("🔄 STATUS TOGGLED:", song._id, "→", song.status);
 
-    /* 🔥 SOCKET.IO */
     const io = req.app.get("io");
     if (io) {
       if (song.status === "Published" && song.visibility === "Public") {
-        io.emit("song:added", song); // user app me add ho gaya
-        console.log("📡 Socket emitted: song:added (published)");
+        io.emit("song:added", song);
       } else {
-        io.emit("song:deleted", { _id: song._id }); // user app se hata do
-        console.log("📡 Socket emitted: song:deleted (unpublished)");
+        io.emit("song:deleted", { _id: song._id });
       }
     }
 
@@ -642,10 +705,8 @@ const toggleStatus = async (req, res) => {
 };
 
 module.exports = {
-  // Public
   getPublicSongs,
   getPublicSongById,
-  // Admin
   getSongs,
   getSongById,
   addSong,
